@@ -89,6 +89,7 @@ import { SessionSelectorComponent } from "./components/session-selector.js";
 import { SettingsSelectorComponent } from "./components/settings-selector.js";
 import { SkillInvocationMessageComponent } from "./components/skill-invocation-message.js";
 import { ToolExecutionComponent } from "./components/tool-execution.js";
+import { TranscriptSearchComponent, type TranscriptSearchRequest } from "./components/transcript-search.js";
 import { TranscriptViewportComponent } from "./components/transcript-viewport.js";
 import { TreeSelectorComponent } from "./components/tree-selector.js";
 import { UserMessageComponent } from "./components/user-message.js";
@@ -380,6 +381,7 @@ export class InteractiveMode {
 		const model = this.session.model;
 		const transcriptState = this.transcriptViewport.getState();
 		const transcriptAtLatest = transcriptState.atLatest;
+		const transcriptSearchQuery = this.transcriptViewport.getSearchQuery();
 		const thinkingLabel = model?.reasoning
 			? this.session.thinkingLevel === "off"
 				? "off"
@@ -392,8 +394,10 @@ export class InteractiveMode {
 					rawKeyHint("!", "bash"),
 					rawKeyHint("!!", "bash (no ctx)"),
 					rawKeyHint(submitLabel, "run"),
+					appKeyHint(this.keybindings, "transcriptSearch", "search"),
 					appKeyHint(this.keybindings, "transcriptLineUp", "history"),
 					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptLineDown", "down")] : []),
+					...(transcriptSearchQuery ? [appKeyHint(this.keybindings, "transcriptSearchNext", "next")] : []),
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
 					appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
@@ -404,8 +408,10 @@ export class InteractiveMode {
 					rawKeyHint("/", "commands"),
 					rawKeyHint("!", "bash"),
 					rawKeyHint(submitLabel, "send"),
+					appKeyHint(this.keybindings, "transcriptSearch", "search"),
 					appKeyHint(this.keybindings, "transcriptLineUp", "history"),
 					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptLineDown", "down")] : []),
+					...(transcriptSearchQuery ? [appKeyHint(this.keybindings, "transcriptSearchNext", "next")] : []),
 					appKeyHint(this.keybindings, "followUp", "queue"),
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
@@ -1982,6 +1988,9 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("externalEditor", () => this.openExternalEditor());
 		this.defaultEditor.onAction("followUp", () => this.handleFollowUp());
 		this.defaultEditor.onAction("dequeue", () => this.handleDequeue());
+		this.defaultEditor.onAction("transcriptSearch", () => void this.showTranscriptSearch());
+		this.defaultEditor.onAction("transcriptSearchNext", () => this.runTranscriptSearch("next"));
+		this.defaultEditor.onAction("transcriptSearchPrev", () => this.runTranscriptSearch("prev"));
 		this.defaultEditor.onAction("transcriptLineUp", () => this.handleTranscriptLineUp());
 		this.defaultEditor.onAction("transcriptLineDown", () => this.handleTranscriptLineDown());
 		this.defaultEditor.onAction("transcriptPageUp", () => this.handleTranscriptPageUp());
@@ -2015,6 +2024,61 @@ export class InteractiveMode {
 
 	private handleTranscriptLineUp(): void {
 		this.transcriptViewport.scrollLineUp();
+		this.ui.requestRender();
+	}
+
+	private async showTranscriptSearch(): Promise<void> {
+		const initialQuery = this.transcriptViewport.getSearchQuery() ?? "";
+		const request = await this.showExtensionCustom<TranscriptSearchRequest | undefined>(
+			(_tui, _theme, _keybindings, done) =>
+				new TranscriptSearchComponent(
+					initialQuery,
+					(value) => done(value),
+					() => done(undefined),
+				),
+			{
+				overlay: true,
+				overlayOptions: () => ({
+					anchor: "bottom-center",
+					offsetY: -2,
+					width: Math.min(64, Math.max(40, this.ui.terminal.columns - 8)),
+					maxHeight: 7,
+				}),
+			},
+		);
+
+		if (request === undefined) {
+			return;
+		}
+
+		if (!request.query.trim()) {
+			this.transcriptViewport.searchNext("");
+			this.showStatus("Transcript search cleared");
+			this.ui.requestRender();
+			return;
+		}
+
+		this.runTranscriptSearch(request.direction, request.query);
+	}
+
+	private runTranscriptSearch(direction: "next" | "prev", query?: string): void {
+		const effectiveQuery = query?.trim() || this.transcriptViewport.getSearchQuery();
+		if (!effectiveQuery) {
+			void this.showTranscriptSearch();
+			return;
+		}
+
+		const result =
+			direction === "prev"
+				? this.transcriptViewport.searchPrevious(effectiveQuery)
+				: this.transcriptViewport.searchNext(effectiveQuery);
+		if (!result) {
+			this.showStatus(`No matches for "${effectiveQuery}"`);
+			this.ui.requestRender();
+			return;
+		}
+
+		this.showStatus(`Match ${result.activeMatch}/${result.totalMatches} for "${result.query}"`);
 		this.ui.requestRender();
 	}
 
@@ -4298,6 +4362,9 @@ export class InteractiveMode {
 		const externalEditor = this.getAppKeyDisplay("externalEditor");
 		const followUp = this.getAppKeyDisplay("followUp");
 		const dequeue = this.getAppKeyDisplay("dequeue");
+		const transcriptSearch = this.getAppKeyDisplay("transcriptSearch");
+		const transcriptSearchNext = this.getAppKeyDisplay("transcriptSearchNext");
+		const transcriptSearchPrev = this.getAppKeyDisplay("transcriptSearchPrev");
 		const transcriptLineUp = this.getAppKeyDisplay("transcriptLineUp");
 		const transcriptLineDown = this.getAppKeyDisplay("transcriptLineDown");
 		const transcriptPageUp = this.getAppKeyDisplay("transcriptPageUp");
@@ -4346,6 +4413,8 @@ export class InteractiveMode {
 | \`${externalEditor}\` | Edit message in external editor |
 | \`${followUp}\` | Queue follow-up message |
 | \`${dequeue}\` | Restore queued messages |
+| \`${transcriptSearch}\` | Search transcript |
+| \`${transcriptSearchNext}\` / \`${transcriptSearchPrev}\` | Next/previous transcript match |
 | \`${transcriptLineUp}\` / \`${transcriptLineDown}\` | Scroll transcript by line |
 | \`${transcriptPageUp}\` / \`${transcriptPageDown}\` | Scroll transcript |
 | \`${transcriptOldest}\` / \`${transcriptLatest}\` | Jump transcript to oldest/latest |

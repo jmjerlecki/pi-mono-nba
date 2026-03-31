@@ -25,6 +25,9 @@ export interface AppKeybindings {
 	"app.editor.external": true;
 	"app.message.followUp": true;
 	"app.message.dequeue": true;
+	"app.transcript.search": true;
+	"app.transcript.searchNext": true;
+	"app.transcript.searchPrev": true;
 	"app.transcript.lineUp": true;
 	"app.transcript.lineDown": true;
 	"app.transcript.pageUp": true;
@@ -98,6 +101,18 @@ export const KEYBINDINGS = {
 	"app.transcript.lineUp": {
 		defaultKeys: "alt+k",
 		description: "Scroll transcript up one line",
+	},
+	"app.transcript.search": {
+		defaultKeys: "alt+/",
+		description: "Search transcript",
+	},
+	"app.transcript.searchNext": {
+		defaultKeys: "alt+n",
+		description: "Jump to next transcript match",
+	},
+	"app.transcript.searchPrev": {
+		defaultKeys: "alt+shift+n",
+		description: "Jump to previous transcript match",
 	},
 	"app.transcript.lineDown": {
 		defaultKeys: "alt+j",
@@ -199,6 +214,9 @@ const KEYBINDING_NAME_MIGRATIONS = {
 	externalEditor: "app.editor.external",
 	followUp: "app.message.followUp",
 	dequeue: "app.message.dequeue",
+	transcriptSearch: "app.transcript.search",
+	transcriptSearchNext: "app.transcript.searchNext",
+	transcriptSearchPrev: "app.transcript.searchPrev",
 	transcriptLineUp: "app.transcript.lineUp",
 	transcriptLineDown: "app.transcript.lineDown",
 	transcriptPageUp: "app.transcript.pageUp",
