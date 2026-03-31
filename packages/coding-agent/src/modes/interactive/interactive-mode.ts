@@ -266,6 +266,10 @@ export class InteractiveMode {
 			this.chatContainer,
 			(width) => this.getChatViewportHeight(width),
 			() => this.getLatestUserPromptPreview(),
+			(direction) =>
+				direction === "newer"
+					? `${this.getAppKeyDisplay("transcriptLatest")} to latest`
+					: `${this.getAppKeyDisplay("transcriptPageDown")} down`,
 		);
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();

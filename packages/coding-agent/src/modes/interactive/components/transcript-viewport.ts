@@ -7,6 +7,8 @@ export interface TranscriptViewportState {
 	hiddenBelow: number;
 }
 
+export type TranscriptOverflowDirection = "earlier" | "newer";
+
 export class TranscriptViewportComponent implements Component {
 	private offsetFromBottom = 0;
 	private lastAvailableHeight = 0;
@@ -16,6 +18,7 @@ export class TranscriptViewportComponent implements Component {
 		private readonly transcript: Component,
 		private readonly getAvailableHeight: (width: number) => number,
 		private readonly getPinnedContext?: () => string | undefined,
+		private readonly getOverflowHint?: (direction: TranscriptOverflowDirection) => string | undefined,
 	) {}
 
 	invalidate(): void {
@@ -103,8 +106,10 @@ export class TranscriptViewportComponent implements Component {
 	}
 
 	private renderOverflowLine(width: number, direction: "earlier" | "newer", hiddenLineCount: number): string {
-		const label = theme.fg("dim", `... ${hiddenLineCount} ${direction} line${hiddenLineCount === 1 ? "" : "s"}`);
-		return truncateToWidth(label, width, "");
+		const countLabel = `${hiddenLineCount} ${direction} line${hiddenLineCount === 1 ? "" : "s"}`;
+		const hint = this.getOverflowHint?.(direction);
+		const label = hint ? `${countLabel} | ${hint}` : countLabel;
+		return truncateToWidth(theme.fg("dim", `... ${label}`), width, "");
 	}
 
 	private renderPinnedContext(width: number, context: string): string {
