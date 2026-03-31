@@ -2,7 +2,6 @@ import type OpenAI from "openai";
 import type {
 	Tool as OpenAITool,
 	ResponseCreateParamsStreaming,
-	ResponseFunctionCallOutputItemList,
 	ResponseFunctionToolCall,
 	ResponseInput,
 	ResponseInputContent,
@@ -92,28 +91,21 @@ export function convertResponsesMessages<TApi extends Api>(
 ): ResponseInput {
 	const messages: ResponseInput = [];
 
-	const normalizeIdPart = (part: string): string => {
-		const sanitized = part.replace(/[^a-zA-Z0-9_-]/g, "_");
-		const normalized = sanitized.length > 64 ? sanitized.slice(0, 64) : sanitized;
-		return normalized.replace(/_+$/, "");
-	};
-
-	const buildForeignResponsesItemId = (itemId: string): string => {
-		const normalized = `fc_${shortHash(itemId)}`;
-		return normalized.length > 64 ? normalized.slice(0, 64) : normalized;
-	};
-
-	const normalizeToolCallId = (id: string, _targetModel: Model<TApi>, source: AssistantMessage): string => {
-		if (!allowedToolCallProviders.has(model.provider)) return normalizeIdPart(id);
-		if (!id.includes("|")) return normalizeIdPart(id);
+	const normalizeToolCallId = (id: string): string => {
+		if (!allowedToolCallProviders.has(model.provider)) return id;
+		if (!id.includes("|")) return id;
 		const [callId, itemId] = id.split("|");
-		const normalizedCallId = normalizeIdPart(callId);
-		const isForeignToolCall = source.provider !== model.provider || source.api !== model.api;
-		let normalizedItemId = isForeignToolCall ? buildForeignResponsesItemId(itemId) : normalizeIdPart(itemId);
+		const sanitizedCallId = callId.replace(/[^a-zA-Z0-9_-]/g, "_");
+		let sanitizedItemId = itemId.replace(/[^a-zA-Z0-9_-]/g, "_");
 		// OpenAI Responses API requires item id to start with "fc"
-		if (!normalizedItemId.startsWith("fc_")) {
-			normalizedItemId = normalizeIdPart(`fc_${normalizedItemId}`);
+		if (!sanitizedItemId.startsWith("fc")) {
+			sanitizedItemId = `fc_${sanitizedItemId}`;
 		}
+		// Truncate to 64 chars and strip trailing underscores (OpenAI Codex rejects them)
+		let normalizedCallId = sanitizedCallId.length > 64 ? sanitizedCallId.slice(0, 64) : sanitizedCallId;
+		let normalizedItemId = sanitizedItemId.length > 64 ? sanitizedItemId.slice(0, 64) : sanitizedItemId;
+		normalizedCallId = normalizedCallId.replace(/_+$/, "");
+		normalizedItemId = normalizedItemId.replace(/_+$/, "");
 		return `${normalizedCallId}|${normalizedItemId}`;
 	};
 
@@ -184,13 +176,13 @@ export function convertResponsesMessages<TApi extends Api>(
 					} else if (msgId.length > 64) {
 						msgId = `msg_${shortHash(msgId)}`;
 					}
-						output.push({
-							type: "message",
-							role: "assistant",
-							content: [{ type: "output_text", text: sanitizeSurrogates(textBlock.text), annotations: [] }],
-							status: "completed",
-							id: msgId,
-						} satisfies ResponseOutputMessage);
+					output.push({
+						type: "message",
+						role: "assistant",
+						content: [{ type: "output_text", text: sanitizeSurrogates(textBlock.text), annotations: [] }],
+						status: "completed",
+						id: msgId,
+					} satisfies ResponseOutputMessage);
 				} else if (block.type === "toolCall") {
 					const toolCall = block as ToolCall;
 					const [callId, itemIdRaw] = toolCall.id.split("|");
@@ -215,45 +207,48 @@ export function convertResponsesMessages<TApi extends Api>(
 			if (output.length === 0) continue;
 			messages.push(...output);
 		} else if (msg.role === "toolResult") {
+			// Extract text and image content
 			const textResult = msg.content
 				.filter((c): c is TextContent => c.type === "text")
 				.map((c) => c.text)
 				.join("\n");
 			const hasImages = msg.content.some((c): c is ImageContent => c.type === "image");
+
+			// Always send function_call_output with text (or placeholder if only images)
 			const hasText = textResult.length > 0;
 			const [callId] = msg.toolCallId.split("|");
+			messages.push({
+				type: "function_call_output",
+				call_id: callId,
+				output: sanitizeSurrogates(hasText ? textResult : "(see attached image)"),
+			});
 
-			let output: string | ResponseFunctionCallOutputItemList;
+			// If there are images and model supports them, send a follow-up user message with images
 			if (hasImages && model.input.includes("image")) {
-				const contentParts: ResponseFunctionCallOutputItemList = [];
+				const contentParts: ResponseInputContent[] = [];
 
-				if (hasText) {
-					contentParts.push({
-						type: "input_text",
-						text: sanitizeSurrogates(textResult),
-					});
-				}
+				// Add text prefix
+				contentParts.push({
+					type: "input_text",
+					text: "Attached image(s) from tool result:",
+				} satisfies ResponseInputText);
 
+				// Add images
 				for (const block of msg.content) {
 					if (block.type === "image") {
 						contentParts.push({
 							type: "input_image",
 							detail: "auto",
 							image_url: `data:${block.mimeType};base64,${block.data}`,
-						});
+						} satisfies ResponseInputImage);
 					}
 				}
 
-				output = contentParts;
-			} else {
-				output = sanitizeSurrogates(hasText ? textResult : "(see attached image)");
+				messages.push({
+					role: "user",
+					content: contentParts,
+				});
 			}
-
-			messages.push({
-				type: "function_call_output",
-				call_id: callId,
-				output,
-			});
 		}
 		msgIndex++;
 	}
@@ -293,9 +288,7 @@ export async function processResponsesStream<TApi extends Api>(
 	const blockIndex = () => blocks.length - 1;
 
 	for await (const event of openaiStream) {
-		if (event.type === "response.created") {
-			output.responseId = event.response.id;
-		} else if (event.type === "response.output_item.added") {
+		if (event.type === "response.output_item.added") {
 			const item = event.item;
 			if (item.type === "reasoning") {
 				currentItem = item;
@@ -425,10 +418,10 @@ export async function processResponsesStream<TApi extends Api>(
 					partial: output,
 				});
 				currentBlock = null;
-				} else if (item.type === "message" && currentBlock?.type === "text") {
-					currentBlock.text = item.content.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("");
-					currentBlock.textSignature = encodeTextSignatureV1(item.id);
-					stream.push({
+			} else if (item.type === "message" && currentBlock?.type === "text") {
+				currentBlock.text = item.content.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("");
+				currentBlock.textSignature = encodeTextSignatureV1(item.id);
+				stream.push({
 					type: "text_end",
 					contentIndex: blockIndex(),
 					content: currentBlock.text,
@@ -452,9 +445,6 @@ export async function processResponsesStream<TApi extends Api>(
 			}
 		} else if (event.type === "response.completed") {
 			const response = event.response;
-			if (response?.id) {
-				output.responseId = response.id;
-			}
 			if (response?.usage) {
 				const cachedTokens = response.usage.input_tokens_details?.cached_tokens || 0;
 				output.usage = {
