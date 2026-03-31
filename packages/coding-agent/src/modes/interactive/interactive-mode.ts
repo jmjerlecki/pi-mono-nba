@@ -2020,6 +2020,13 @@ export class InteractiveMode {
 		this.ui.requestRender();
 	}
 
+	private revealLatestTranscript(): void {
+		if (!this.transcriptViewport.isAtLatest()) {
+			this.transcriptViewport.jumpToLatest();
+			this.ui.requestRender();
+		}
+	}
+
 	private async handleClipboardImagePaste(): Promise<void> {
 		try {
 			const image = await readClipboardImage();
@@ -2166,6 +2173,7 @@ export class InteractiveMode {
 						this.editor.setText(text);
 						return;
 					}
+					this.revealLatestTranscript();
 					this.editor.addToHistory?.(text);
 					await this.handleBashCommand(command, isExcluded);
 					this.isBashMode = false;
@@ -2177,6 +2185,7 @@ export class InteractiveMode {
 			// Queue input during compaction (extension commands execute immediately)
 			if (this.session.isCompacting) {
 				if (this.isExtensionCommand(text)) {
+					this.revealLatestTranscript();
 					this.editor.addToHistory?.(text);
 					this.editor.setText("");
 					await this.session.prompt(text);
@@ -2189,6 +2198,7 @@ export class InteractiveMode {
 			// If streaming, use prompt() with steer behavior
 			// This handles extension commands (execute immediately), prompt template expansion, and queueing
 			if (this.session.isStreaming) {
+				this.revealLatestTranscript();
 				this.editor.addToHistory?.(text);
 				this.editor.setText("");
 				await this.session.prompt(text, { streamingBehavior: "steer" });
@@ -2202,6 +2212,7 @@ export class InteractiveMode {
 			this.flushPendingBashComponents();
 
 			if (this.onInputCallback) {
+				this.revealLatestTranscript();
 				this.onInputCallback(text);
 			}
 			this.editor.addToHistory?.(text);
@@ -2832,6 +2843,7 @@ export class InteractiveMode {
 		// Queue input during compaction (extension commands execute immediately)
 		if (this.session.isCompacting) {
 			if (this.isExtensionCommand(text)) {
+				this.revealLatestTranscript();
 				this.editor.addToHistory?.(text);
 				this.editor.setText("");
 				await this.session.prompt(text);
@@ -2844,6 +2856,7 @@ export class InteractiveMode {
 		// Alt+Enter queues a follow-up message (waits until agent finishes)
 		// This handles extension commands (execute immediately), prompt template expansion, and queueing
 		if (this.session.isStreaming) {
+			this.revealLatestTranscript();
 			this.editor.addToHistory?.(text);
 			this.editor.setText("");
 			await this.session.prompt(text, { streamingBehavior: "followUp" });
