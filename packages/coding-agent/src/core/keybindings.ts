@@ -25,6 +25,9 @@ export interface AppKeybindings {
 	"app.editor.external": true;
 	"app.message.followUp": true;
 	"app.message.dequeue": true;
+	"app.transcript.pageUp": true;
+	"app.transcript.pageDown": true;
+	"app.transcript.latest": true;
 	"app.clipboard.pasteImage": true;
 	"app.session.new": true;
 	"app.session.tree": true;
@@ -84,6 +87,18 @@ export const KEYBINDINGS = {
 	"app.message.dequeue": {
 		defaultKeys: "alt+up",
 		description: "Restore queued messages",
+	},
+	"app.transcript.pageUp": {
+		defaultKeys: "alt+pageup",
+		description: "Scroll transcript up",
+	},
+	"app.transcript.pageDown": {
+		defaultKeys: "alt+pagedown",
+		description: "Scroll transcript down",
+	},
+	"app.transcript.latest": {
+		defaultKeys: "alt+down",
+		description: "Jump transcript to latest",
 	},
 	"app.clipboard.pasteImage": {
 		defaultKeys: process.platform === "win32" ? "alt+v" : "ctrl+v",
@@ -169,6 +184,9 @@ const KEYBINDING_NAME_MIGRATIONS = {
 	externalEditor: "app.editor.external",
 	followUp: "app.message.followUp",
 	dequeue: "app.message.dequeue",
+	transcriptPageUp: "app.transcript.pageUp",
+	transcriptPageDown: "app.transcript.pageDown",
+	transcriptLatest: "app.transcript.latest",
 	pasteImage: "app.clipboard.pasteImage",
 	newSession: "app.session.new",
 	tree: "app.session.tree",

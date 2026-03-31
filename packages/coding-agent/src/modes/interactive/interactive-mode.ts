@@ -372,6 +372,7 @@ export class InteractiveMode {
 
 	private getComposerStatusSnapshot(): ComposerStatusSnapshot {
 		const model = this.session.model;
+		const transcriptAtLatest = this.transcriptViewport.isAtLatest();
 		const thinkingLabel = model?.reasoning
 			? this.session.thinkingLevel === "off"
 				? "off"
@@ -384,19 +385,23 @@ export class InteractiveMode {
 					rawKeyHint("!", "bash"),
 					rawKeyHint("!!", "bash (no ctx)"),
 					rawKeyHint(submitLabel, "run"),
+					appKeyHint(this.keybindings, "transcriptPageUp", "history"),
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
 					appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
+					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptLatest", "latest")] : []),
 					...(this.loadingAnimation ? [rawKeyHint(interruptLabel, "interrupt")] : []),
 				]
 			: [
 					rawKeyHint("/", "commands"),
 					rawKeyHint("!", "bash"),
 					rawKeyHint(submitLabel, "send"),
+					appKeyHint(this.keybindings, "transcriptPageUp", "history"),
 					appKeyHint(this.keybindings, "followUp", "queue"),
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
 					appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
+					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptLatest", "latest")] : []),
 					...(this.loadingAnimation ? [rawKeyHint(interruptLabel, "interrupt")] : []),
 				];
 
@@ -405,7 +410,10 @@ export class InteractiveMode {
 			modelName: model ? model.id : "no-model",
 			thinkingLabel,
 			isStreaming: !!this.loadingAnimation || this.session.isStreaming,
-			statusText: this.currentWorkingMessage ?? this.latestComposerStatus,
+			statusText:
+				this.currentWorkingMessage ??
+				this.latestComposerStatus ??
+				(!transcriptAtLatest ? "Viewing earlier messages" : undefined),
 			hints,
 		};
 	}
@@ -1961,6 +1969,9 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("externalEditor", () => this.openExternalEditor());
 		this.defaultEditor.onAction("followUp", () => this.handleFollowUp());
 		this.defaultEditor.onAction("dequeue", () => this.handleDequeue());
+		this.defaultEditor.onAction("transcriptPageUp", () => this.handleTranscriptPageUp());
+		this.defaultEditor.onAction("transcriptPageDown", () => this.handleTranscriptPageDown());
+		this.defaultEditor.onAction("transcriptLatest", () => this.handleTranscriptJumpToLatest());
 		this.defaultEditor.onAction("newSession", () => this.handleClearCommand());
 		this.defaultEditor.onAction("tree", () => this.showTreeSelector());
 		this.defaultEditor.onAction("fork", () => this.showUserMessageSelector());
@@ -1979,6 +1990,21 @@ export class InteractiveMode {
 		this.defaultEditor.onPasteImage = () => {
 			this.handleClipboardImagePaste();
 		};
+	}
+
+	private handleTranscriptPageUp(): void {
+		this.transcriptViewport.scrollPageUp();
+		this.ui.requestRender();
+	}
+
+	private handleTranscriptPageDown(): void {
+		this.transcriptViewport.scrollPageDown();
+		this.ui.requestRender();
+	}
+
+	private handleTranscriptJumpToLatest(): void {
+		this.transcriptViewport.jumpToLatest();
+		this.ui.requestRender();
 	}
 
 	private async handleClipboardImagePaste(): Promise<void> {
@@ -4208,6 +4234,9 @@ export class InteractiveMode {
 		const externalEditor = this.getAppKeyDisplay("externalEditor");
 		const followUp = this.getAppKeyDisplay("followUp");
 		const dequeue = this.getAppKeyDisplay("dequeue");
+		const transcriptPageUp = this.getAppKeyDisplay("transcriptPageUp");
+		const transcriptPageDown = this.getAppKeyDisplay("transcriptPageDown");
+		const transcriptLatest = this.getAppKeyDisplay("transcriptLatest");
 
 		let hotkeys = `
 **Navigation**
@@ -4250,6 +4279,8 @@ export class InteractiveMode {
 | \`${externalEditor}\` | Edit message in external editor |
 | \`${followUp}\` | Queue follow-up message |
 | \`${dequeue}\` | Restore queued messages |
+| \`${transcriptPageUp}\` / \`${transcriptPageDown}\` | Scroll transcript |
+| \`${transcriptLatest}\` | Jump transcript to latest |
 | \`Ctrl+V\` | Paste image from clipboard |
 | \`/\` | Slash commands |
 | \`!\` | Run bash command |

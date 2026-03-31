@@ -2,6 +2,9 @@ import { type Component, truncateToWidth } from "@mariozechner/pi-tui";
 import { theme } from "../theme/theme.js";
 
 export class TranscriptViewportComponent implements Component {
+	private offsetFromBottom = 0;
+	private lastAvailableHeight = 0;
+
 	constructor(
 		private readonly transcript: Component,
 		private readonly getAvailableHeight: (width: number) => number,
@@ -11,27 +14,71 @@ export class TranscriptViewportComponent implements Component {
 		this.transcript.invalidate?.();
 	}
 
+	isAtLatest(): boolean {
+		return this.offsetFromBottom === 0;
+	}
+
+	scrollPageUp(): void {
+		this.offsetFromBottom += this.getPageStep();
+	}
+
+	scrollPageDown(): void {
+		this.offsetFromBottom = Math.max(0, this.offsetFromBottom - this.getPageStep());
+	}
+
+	jumpToLatest(): void {
+		this.offsetFromBottom = 0;
+	}
+
 	render(width: number): string[] {
 		const lines = this.transcript.render(width);
 		const availableHeight = Math.max(0, this.getAvailableHeight(width));
+		this.lastAvailableHeight = availableHeight;
 		if (availableHeight <= 0) {
 			return [];
 		}
-		if (lines.length <= availableHeight) {
+
+		const maxOffset = Math.max(0, lines.length - availableHeight);
+		this.offsetFromBottom = Math.min(this.offsetFromBottom, maxOffset);
+		if (lines.length <= availableHeight && this.offsetFromBottom === 0) {
 			return lines;
 		}
 
-		const hiddenLineCount = lines.length - availableHeight;
-		if (availableHeight === 1) {
-			return [this.renderOverflowLine(width, hiddenLineCount)];
+		const start = Math.max(0, lines.length - availableHeight - this.offsetFromBottom);
+		const end = Math.min(lines.length, start + availableHeight);
+		const hiddenAbove = start;
+		const hiddenBelow = Math.max(0, lines.length - end);
+
+		if (hiddenAbove === 0 && hiddenBelow === 0) {
+			return lines.slice(start, end);
 		}
 
-		const visibleLines = lines.slice(-(availableHeight - 1));
-		return [this.renderOverflowLine(width, hiddenLineCount), ...visibleLines];
+		const visibleLines = lines.slice(start, end);
+		const overflowRows = Number(hiddenAbove > 0) + Number(hiddenBelow > 0);
+		const contentHeight = Math.max(0, availableHeight - overflowRows);
+
+		if (contentHeight === 0) {
+			return [this.renderOverflowLine(width, hiddenAbove > 0 ? "earlier" : "newer", hiddenAbove || hiddenBelow)];
+		}
+
+		const trimmedVisibleLines = visibleLines.slice(hiddenAbove > 0 ? 1 : 0, hiddenBelow > 0 ? -1 : undefined);
+		const rendered: string[] = [];
+		if (hiddenAbove > 0) {
+			rendered.push(this.renderOverflowLine(width, "earlier", hiddenAbove));
+		}
+		rendered.push(...trimmedVisibleLines);
+		if (hiddenBelow > 0) {
+			rendered.push(this.renderOverflowLine(width, "newer", hiddenBelow));
+		}
+		return rendered;
 	}
 
-	private renderOverflowLine(width: number, hiddenLineCount: number): string {
-		const label = theme.fg("dim", `... ${hiddenLineCount} earlier line${hiddenLineCount === 1 ? "" : "s"}`);
+	private getPageStep(): number {
+		return Math.max(1, this.lastAvailableHeight - 2);
+	}
+
+	private renderOverflowLine(width: number, direction: "earlier" | "newer", hiddenLineCount: number): string {
+		const label = theme.fg("dim", `... ${hiddenLineCount} ${direction} line${hiddenLineCount === 1 ? "" : "s"}`);
 		return truncateToWidth(label, width, "");
 	}
 }
