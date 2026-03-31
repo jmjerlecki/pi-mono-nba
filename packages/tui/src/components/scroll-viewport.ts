@@ -47,6 +47,7 @@ interface ScrollViewportLineSource extends Component {
 	renderLineSlice?(width: number, startLine: number, endLine: number): string[];
 	getPlainTextLines?(width: number): string[];
 	renderTrailingLines?(width: number, lineCount: number): { lines: string[]; startLine: number; totalLines: number };
+	setBrowsingHistory?(browsingHistory: boolean): void;
 }
 
 export class ScrollViewport implements Component {
@@ -142,10 +143,20 @@ export class ScrollViewport implements Component {
 			return [];
 		}
 
+		let browsingHistory = this.offsetFromBottom > 0;
+		this.setBrowsingHistoryMode(browsingHistory);
 		let totalLines = this.getTotalLineCount(width);
 		let maxOffset = Math.max(0, totalLines - availableHeight);
 		this.lastMaxOffset = maxOffset;
 		this.offsetFromBottom = Math.min(this.offsetFromBottom, maxOffset);
+		if (this.offsetFromBottom > 0 !== browsingHistory) {
+			browsingHistory = this.offsetFromBottom > 0;
+			this.setBrowsingHistoryMode(browsingHistory);
+			totalLines = this.getTotalLineCount(width);
+			maxOffset = Math.max(0, totalLines - availableHeight);
+			this.lastMaxOffset = maxOffset;
+			this.offsetFromBottom = Math.min(this.offsetFromBottom, maxOffset);
+		}
 		if (this.offsetFromBottom === 0) {
 			const trailing = this.renderTrailingLines(width, availableHeight);
 			if (trailing) {
@@ -473,5 +484,10 @@ export class ScrollViewport implements Component {
 	): { lines: string[]; startLine: number; totalLines: number } | undefined {
 		const content = this.content as ScrollViewportLineSource;
 		return content.renderTrailingLines?.(width, lineCount);
+	}
+
+	private setBrowsingHistoryMode(browsingHistory: boolean): void {
+		const content = this.content as ScrollViewportLineSource;
+		content.setBrowsingHistory?.(browsingHistory);
 	}
 }

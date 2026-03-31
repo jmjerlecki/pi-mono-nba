@@ -35,6 +35,7 @@ import {
 	TUI,
 	truncateToWidth,
 	VirtualizedContainer,
+	type VirtualizedContainerChildOptions,
 	visibleWidth,
 } from "@mariozechner/pi-tui";
 import { spawn, spawnSync } from "child_process";
@@ -474,15 +475,26 @@ export class InteractiveMode {
 		this.currentWorkingMessage = message;
 	}
 
+	private addTranscriptNotice(
+		text: string,
+		color: "dim" | "warning" | "error" | "accent",
+		options?: VirtualizedContainerChildOptions,
+	): void {
+		this.chatContainer.addChild(new Spacer(1), options);
+		this.chatContainer.addChild(new Text(theme.fg(color, text), 1, 0), options);
+	}
+
 	private renderTranscriptOverflowLine(width: number, info: TranscriptOverflowInfo): string {
 		const icon = info.direction === "earlier" ? "▲" : "▼";
 		const scopeLabel =
-			info.direction === "earlier" ? "history above" : theme.bold(theme.fg("accent", "live output below"));
+			info.direction === "earlier"
+				? "history above"
+				: theme.bg("selectedBg", theme.fg("accent", ` ${this.getAppKeyDisplay("transcriptLatest")} jump to live `));
 		const lineLabel = `${info.hiddenLineCount} ${info.direction} line${info.hiddenLineCount === 1 ? "" : "s"}`;
 		const jumpHint =
 			info.direction === "earlier"
 				? `${this.getAppKeyDisplay("transcriptPageUp")} page  ${this.getAppKeyDisplay("transcriptOldest")} oldest`
-				: `${this.getAppKeyDisplay("transcriptLineDown")} down  ${this.getAppKeyDisplay("transcriptLatest")} latest`;
+				: `${this.getAppKeyDisplay("transcriptLineDown")} line down`;
 		const searchLabel =
 			info.hiddenMatchCount > 0
 				? info.activeMatchHidden
@@ -3150,15 +3162,13 @@ export class InteractiveMode {
 
 	showError(errorMessage: string): void {
 		this.latestComposerStatus = `Error: ${errorMessage}`;
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Text(theme.fg("error", `Error: ${errorMessage}`), 1, 0));
+		this.addTranscriptNotice(`Error: ${errorMessage}`, "error", { collapseWhenBrowsingHistory: true });
 		this.ui.requestRender();
 	}
 
 	showWarning(warningMessage: string): void {
 		this.latestComposerStatus = `Warning: ${warningMessage}`;
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Text(theme.fg("warning", `Warning: ${warningMessage}`), 1, 0));
+		this.addTranscriptNotice(`Warning: ${warningMessage}`, "warning", { collapseWhenBrowsingHistory: true });
 		this.ui.requestRender();
 	}
 
@@ -4283,8 +4293,7 @@ export class InteractiveMode {
 		if (!name) {
 			const currentName = this.sessionManager.getSessionName();
 			if (currentName) {
-				this.chatContainer.addChild(new Spacer(1));
-				this.chatContainer.addChild(new Text(theme.fg("dim", `Session name: ${currentName}`), 1, 0));
+				this.addTranscriptNotice(`Session name: ${currentName}`, "dim", { collapseWhenBrowsingHistory: true });
 			} else {
 				this.showWarning("Usage: /name <name>");
 			}
@@ -4294,8 +4303,7 @@ export class InteractiveMode {
 
 		this.sessionManager.appendSessionInfo(name);
 		this.updateTerminalTitle();
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Text(theme.fg("dim", `Session name set: ${name}`), 1, 0));
+		this.addTranscriptNotice(`Session name set: ${name}`, "dim", { collapseWhenBrowsingHistory: true });
 		this.ui.requestRender();
 	}
 
@@ -4527,8 +4535,10 @@ export class InteractiveMode {
 		this.streamingMessage = undefined;
 		this.pendingTools.clear();
 
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Text(`${theme.fg("accent", "✓ New session started")}`, 1, 1));
+		this.chatContainer.addChild(new Spacer(1), { collapseWhenBrowsingHistory: true });
+		this.chatContainer.addChild(new Text(`${theme.fg("accent", "✓ New session started")}`, 1, 1), {
+			collapseWhenBrowsingHistory: true,
+		});
 		this.ui.requestRender();
 	}
 

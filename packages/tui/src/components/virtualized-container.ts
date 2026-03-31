@@ -11,14 +11,21 @@ interface CachedRender {
 	width?: number;
 }
 
+export interface VirtualizedContainerChildOptions {
+	collapseWhenBrowsingHistory?: boolean;
+}
+
 export class VirtualizedContainer extends Container {
 	private cachedRenders: CachedRender[] = [];
+	private childOptions: VirtualizedContainerChildOptions[] = [];
 	private cachedOffsets: number[] = [0];
 	private offsetsDirty = true;
 	private lastWidth = -1;
+	private browsingHistory = false;
 
-	override addChild(component: Component): void {
+	override addChild(component: Component, options: VirtualizedContainerChildOptions = {}): void {
 		super.addChild(component);
+		this.childOptions.push(options);
 		this.cachedRenders.push({ height: this.estimateHeight(component) });
 		this.offsetsDirty = true;
 	}
@@ -29,6 +36,7 @@ export class VirtualizedContainer extends Container {
 			return;
 		}
 		super.removeChild(component);
+		this.childOptions.splice(index, 1);
 		this.cachedRenders.splice(index, 1);
 		this.offsetsDirty = true;
 	}
@@ -36,8 +44,17 @@ export class VirtualizedContainer extends Container {
 	override clear(): void {
 		super.clear();
 		this.cachedRenders = [];
+		this.childOptions = [];
 		this.cachedOffsets = [0];
 		this.offsetsDirty = false;
+	}
+
+	setBrowsingHistory(browsingHistory: boolean): void {
+		if (this.browsingHistory === browsingHistory) {
+			return;
+		}
+		this.browsingHistory = browsingHistory;
+		this.offsetsDirty = true;
 	}
 
 	override invalidate(): void {
@@ -169,6 +186,9 @@ export class VirtualizedContainer extends Container {
 		if (!cached) {
 			return { height: 0, lines: [], plainLines: [], width };
 		}
+		if (this.isCollapsed(index)) {
+			return { height: 0, lines: [], plainLines: [], width };
+		}
 		if (cached.width === width && cached.lines && cached.plainLines) {
 			return cached as Required<CachedRender>;
 		}
@@ -194,7 +214,8 @@ export class VirtualizedContainer extends Container {
 		const offsets = new Array<number>(this.children.length + 1);
 		offsets[0] = 0;
 		for (let i = 0; i < this.children.length; i++) {
-			offsets[i + 1] = offsets[i] + (this.cachedRenders[i]?.height ?? DEFAULT_ESTIMATED_HEIGHT);
+			offsets[i + 1] =
+				offsets[i] + (this.isCollapsed(i) ? 0 : (this.cachedRenders[i]?.height ?? DEFAULT_ESTIMATED_HEIGHT));
 		}
 		this.cachedOffsets = offsets;
 		this.offsetsDirty = false;
@@ -222,6 +243,10 @@ export class VirtualizedContainer extends Container {
 
 	private estimateHeight(component: Component): number {
 		return component.constructor.name === "Spacer" ? 1 : DEFAULT_ESTIMATED_HEIGHT;
+	}
+
+	private isCollapsed(index: number): boolean {
+		return this.browsingHistory && Boolean(this.childOptions[index]?.collapseWhenBrowsingHistory);
 	}
 
 	private findChildIndex(offsets: number[], lineIndex: number): number {
