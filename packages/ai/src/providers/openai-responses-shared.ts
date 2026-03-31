@@ -73,6 +73,7 @@ export interface OpenAIResponsesStreamOptions {
 
 export interface ConvertResponsesMessagesOptions {
 	includeSystemPrompt?: boolean;
+	includeReasoningItems?: boolean;
 }
 
 export interface ConvertResponsesToolsOptions {
@@ -119,6 +120,7 @@ export function convertResponsesMessages<TApi extends Api>(
 	const transformedMessages = transformMessages(context.messages, model, normalizeToolCallId);
 
 	const includeSystemPrompt = options?.includeSystemPrompt ?? true;
+	const includeReasoningItems = options?.includeReasoningItems ?? true;
 	if (includeSystemPrompt && context.systemPrompt) {
 		const role = model.reasoning ? "developer" : "system";
 		messages.push({
@@ -168,7 +170,7 @@ export function convertResponsesMessages<TApi extends Api>(
 
 			for (const block of msg.content) {
 				if (block.type === "thinking") {
-					if (block.thinkingSignature) {
+					if (includeReasoningItems && block.thinkingSignature) {
 						const reasoningItem = JSON.parse(block.thinkingSignature) as ResponseReasoningItem;
 						output.push(reasoningItem);
 					}
@@ -182,14 +184,13 @@ export function convertResponsesMessages<TApi extends Api>(
 					} else if (msgId.length > 64) {
 						msgId = `msg_${shortHash(msgId)}`;
 					}
-					output.push({
-						type: "message",
-						role: "assistant",
-						content: [{ type: "output_text", text: sanitizeSurrogates(textBlock.text), annotations: [] }],
-						status: "completed",
-						id: msgId,
-						phase: parsedSignature?.phase,
-					} satisfies ResponseOutputMessage);
+						output.push({
+							type: "message",
+							role: "assistant",
+							content: [{ type: "output_text", text: sanitizeSurrogates(textBlock.text), annotations: [] }],
+							status: "completed",
+							id: msgId,
+						} satisfies ResponseOutputMessage);
 				} else if (block.type === "toolCall") {
 					const toolCall = block as ToolCall;
 					const [callId, itemIdRaw] = toolCall.id.split("|");
@@ -424,10 +425,10 @@ export async function processResponsesStream<TApi extends Api>(
 					partial: output,
 				});
 				currentBlock = null;
-			} else if (item.type === "message" && currentBlock?.type === "text") {
-				currentBlock.text = item.content.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("");
-				currentBlock.textSignature = encodeTextSignatureV1(item.id, item.phase ?? undefined);
-				stream.push({
+				} else if (item.type === "message" && currentBlock?.type === "text") {
+					currentBlock.text = item.content.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("");
+					currentBlock.textSignature = encodeTextSignatureV1(item.id);
+					stream.push({
 					type: "text_end",
 					contentIndex: blockIndex(),
 					content: currentBlock.text,

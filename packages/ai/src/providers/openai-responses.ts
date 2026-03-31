@@ -185,7 +185,11 @@ function createClient(
 }
 
 function buildParams(model: Model<"openai-responses">, context: Context, options?: OpenAIResponsesOptions) {
-	const messages = convertResponsesMessages(model, context, OPENAI_TOOL_CALL_PROVIDERS);
+	// Requests are sent with store=false, so replaying encrypted reasoning items
+	// across turns can reference non-persisted rs_* items and fail follow-up tool turns.
+	const messages = convertResponsesMessages(model, context, OPENAI_TOOL_CALL_PROVIDERS, {
+		includeReasoningItems: false,
+	});
 
 	const cacheRetention = resolveCacheRetention(options?.cacheRetention);
 	const params: ResponseCreateParamsStreaming = {
