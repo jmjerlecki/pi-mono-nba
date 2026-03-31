@@ -384,6 +384,7 @@ export class InteractiveMode {
 		const transcriptState = this.transcriptViewport.getState();
 		const transcriptAtLatest = transcriptState.atLatest;
 		const transcriptSearchQuery = this.transcriptViewport.getSearchQuery();
+		const transcriptSearchSummary = this.transcriptViewport.getSearchSummary();
 		const thinkingLabel = model?.reasoning
 			? this.session.thinkingLevel === "off"
 				? "off"
@@ -399,7 +400,12 @@ export class InteractiveMode {
 					appKeyHint(this.keybindings, "transcriptSearch", "search"),
 					appKeyHint(this.keybindings, "transcriptLineUp", "history"),
 					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptLineDown", "down")] : []),
-					...(transcriptSearchQuery ? [appKeyHint(this.keybindings, "transcriptSearchNext", "next")] : []),
+					...(transcriptSearchQuery
+						? [
+								appKeyHint(this.keybindings, "transcriptSearchNext", "next"),
+								appKeyHint(this.keybindings, "transcriptSearchPrev", "prev"),
+							]
+						: []),
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
 					appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
@@ -413,7 +419,12 @@ export class InteractiveMode {
 					appKeyHint(this.keybindings, "transcriptSearch", "search"),
 					appKeyHint(this.keybindings, "transcriptLineUp", "history"),
 					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptLineDown", "down")] : []),
-					...(transcriptSearchQuery ? [appKeyHint(this.keybindings, "transcriptSearchNext", "next")] : []),
+					...(transcriptSearchQuery
+						? [
+								appKeyHint(this.keybindings, "transcriptSearchNext", "next"),
+								appKeyHint(this.keybindings, "transcriptSearchPrev", "prev"),
+							]
+						: []),
 					appKeyHint(this.keybindings, "followUp", "queue"),
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
@@ -427,12 +438,13 @@ export class InteractiveMode {
 			modelName: model ? model.id : "no-model",
 			thinkingLabel,
 			isStreaming: !!this.loadingAnimation || this.session.isStreaming,
+			searchSummary: transcriptSearchSummary,
 			statusText:
 				this.currentWorkingMessage ??
 				this.latestComposerStatus ??
 				(!transcriptAtLatest
 					? transcriptState.hiddenBelow > 0
-						? `${transcriptState.hiddenBelow} newer line${transcriptState.hiddenBelow === 1 ? "" : "s"} below`
+						? `Browsing history • ${transcriptState.hiddenBelow} live line${transcriptState.hiddenBelow === 1 ? "" : "s"} below`
 						: "Viewing earlier messages"
 					: undefined),
 			hints,
@@ -458,6 +470,8 @@ export class InteractiveMode {
 
 	private renderTranscriptOverflowLine(width: number, info: TranscriptOverflowInfo): string {
 		const icon = info.direction === "earlier" ? "▲" : "▼";
+		const scopeLabel =
+			info.direction === "earlier" ? "history above" : theme.bold(theme.fg("accent", "live output below"));
 		const lineLabel = `${info.hiddenLineCount} ${info.direction} line${info.hiddenLineCount === 1 ? "" : "s"}`;
 		const jumpHint =
 			info.direction === "earlier"
@@ -473,7 +487,8 @@ export class InteractiveMode {
 		const count = theme.fg("dim", lineLabel);
 		const matches = searchLabel ? theme.fg(info.activeMatchHidden ? "accent" : "muted", searchLabel) : "";
 		const hint = theme.fg("muted", jumpHint);
-		return truncateToWidth(`${marker} ${count}${matches} ${theme.fg("borderMuted", "·")} ${hint}`, width, "");
+		const separator = theme.fg("borderMuted", "·");
+		return truncateToWidth(`${marker} ${scopeLabel} ${separator} ${count}${matches} ${separator} ${hint}`, width, "");
 	}
 
 	private stopLoadingAnimation(clearStatus = true): void {

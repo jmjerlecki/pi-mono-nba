@@ -7,6 +7,11 @@ export interface ComposerStatusSnapshot {
 	thinkingLabel?: string;
 	isStreaming: boolean;
 	statusText?: string;
+	searchSummary?: {
+		query: string;
+		activeMatch: number;
+		totalMatches: number;
+	};
 	hints: string[];
 }
 
@@ -38,6 +43,22 @@ function formatStatusText(text: string | undefined): string {
 	}
 
 	return theme.fg("muted", sanitized);
+}
+
+function formatSearchBadge(
+	searchSummary: ComposerStatusSnapshot["searchSummary"],
+	widthHint?: number,
+): string | undefined {
+	if (!searchSummary || searchSummary.totalMatches <= 0) {
+		return undefined;
+	}
+
+	const compactQuery =
+		searchSummary.query.length > 18 ? `${searchSummary.query.slice(0, 15).trimEnd()}...` : searchSummary.query;
+	const countBadge = theme.inverse(theme.bold(` ${searchSummary.activeMatch}/${searchSummary.totalMatches} `));
+	const queryLabel = theme.fg("accent", ` ${compactQuery}`);
+	const rendered = `${countBadge}${queryLabel}`;
+	return widthHint ? truncateToWidth(rendered, widthHint, theme.fg("dim", "...")) : rendered;
 }
 
 function fitLine(left: string, right: string, width: number): string {
@@ -78,8 +99,9 @@ export class ComposerStatusComponent implements Component {
 		const stateLabel = snapshot.isStreaming ? theme.fg("warning", "[working]") : undefined;
 		const thinkingLabel = snapshot.thinkingLabel ? theme.fg("muted", `think:${snapshot.thinkingLabel}`) : undefined;
 		const modelLabel = theme.bold(snapshot.modelName);
+		const searchBadge = formatSearchBadge(snapshot.searchSummary, Math.max(16, Math.floor(width * 0.28)));
 
-		const left = [modeBadge, stateLabel, modelLabel, thinkingLabel].filter(Boolean).join(" ");
+		const left = [modeBadge, stateLabel, modelLabel, thinkingLabel, searchBadge].filter(Boolean).join(" ");
 		const right = formatStatusText(snapshot.statusText);
 
 		const separator = theme.fg("borderMuted", " | ");
