@@ -31,7 +31,6 @@ import {
 	ProcessTerminal,
 	Spacer,
 	Text,
-	TruncatedText,
 	TUI,
 	visibleWidth,
 } from "@mariozechner/pi-tui";
@@ -71,6 +70,7 @@ import { BashExecutionComponent } from "./components/bash-execution.js";
 import { BorderedLoader } from "./components/bordered-loader.js";
 import { BranchSummaryMessageComponent } from "./components/branch-summary-message.js";
 import { CompactionSummaryMessageComponent } from "./components/compaction-summary-message.js";
+import { ComposerQueueComponent, type ComposerQueueSnapshot } from "./components/composer-queue.js";
 import { ComposerStatusComponent, type ComposerStatusSnapshot } from "./components/composer-status.js";
 import { CustomEditor } from "./components/custom-editor.js";
 import { CustomMessageComponent } from "./components/custom-message.js";
@@ -152,6 +152,7 @@ export class InteractiveMode {
 	private fdPath: string | undefined;
 	private editorContainer: Container;
 	private footer: FooterComponent;
+	private composerQueue: ComposerQueueComponent;
 	private composerStatus: ComposerStatusComponent;
 	private footerDataProvider: FooterDataProvider;
 	private keybindings: KeybindingsManager;
@@ -276,6 +277,7 @@ export class InteractiveMode {
 		this.footerDataProvider = new FooterDataProvider();
 		this.footer = new FooterComponent(session, this.footerDataProvider);
 		this.footer.setAutoCompactEnabled(session.autoCompactionEnabled);
+		this.composerQueue = new ComposerQueueComponent(() => this.getComposerQueueSnapshot());
 		this.composerStatus = new ComposerStatusComponent(() => this.getComposerStatusSnapshot());
 
 		// Load hide thinking block setting
@@ -365,10 +367,11 @@ export class InteractiveMode {
 
 	private getComposerStatusSnapshot(): ComposerStatusSnapshot {
 		const model = this.session.model;
-		const { steering, followUp } = this.getAllQueuedMessages();
-		const queueCount = steering.length + followUp.length;
-		const thinkingLabel =
-			model?.reasoning ? (this.session.thinkingLevel === "off" ? "off" : this.session.thinkingLevel) : undefined;
+		const thinkingLabel = model?.reasoning
+			? this.session.thinkingLevel === "off"
+				? "off"
+				: this.session.thinkingLevel
+			: undefined;
 		const submitLabel = this.getEditorKeyDisplay("submit");
 		const interruptLabel = this.getAppKeyDisplay("interrupt");
 		const hints = this.isBashMode
@@ -379,7 +382,6 @@ export class InteractiveMode {
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
 					appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
-					...(queueCount > 0 ? [appKeyHint(this.keybindings, "dequeue", "queue")] : []),
 					...(this.loadingAnimation ? [rawKeyHint(interruptLabel, "interrupt")] : []),
 				]
 			: [
@@ -390,7 +392,6 @@ export class InteractiveMode {
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
 					appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
-					...(queueCount > 0 ? [appKeyHint(this.keybindings, "dequeue", "queue")] : []),
 					...(this.loadingAnimation ? [rawKeyHint(interruptLabel, "interrupt")] : []),
 				];
 
@@ -398,12 +399,22 @@ export class InteractiveMode {
 			mode: this.isBashMode ? "bash" : "chat",
 			modelName: model ? model.id : "no-model",
 			thinkingLabel,
-			queueCount,
-			steeringCount: steering.length,
-			followUpCount: followUp.length,
 			isStreaming: !!this.loadingAnimation || this.session.isStreaming,
 			statusText: this.currentWorkingMessage ?? this.latestComposerStatus,
 			hints,
+		};
+	}
+
+	private getComposerQueueSnapshot(): ComposerQueueSnapshot {
+		const { steering, followUp } = this.getAllQueuedMessages();
+		const items = [
+			...steering.map((text) => ({ kind: "steering" as const, text })),
+			...followUp.map((text) => ({ kind: "followUp" as const, text })),
+		];
+
+		return {
+			items,
+			dequeueHint: items.length > 0 ? this.getAppKeyDisplay("dequeue") : undefined,
 		};
 	}
 
@@ -500,6 +511,7 @@ export class InteractiveMode {
 		this.renderWidgets(); // Initialize with default spacer
 		this.ui.addChild(this.widgetContainerAbove);
 		this.ui.addChild(this.composerStatus);
+		this.ui.addChild(this.composerQueue);
 		this.ui.addChild(this.editorContainer);
 		this.ui.addChild(this.widgetContainerBelow);
 		this.ui.addChild(this.footer);
@@ -2972,22 +2984,9 @@ export class InteractiveMode {
 	}
 
 	private updatePendingMessagesDisplay(): void {
-		this.pendingMessagesContainer.clear();
-		const { steering: steeringMessages, followUp: followUpMessages } = this.getAllQueuedMessages();
-		if (steeringMessages.length > 0 || followUpMessages.length > 0) {
-			this.pendingMessagesContainer.addChild(new Spacer(1));
-			for (const message of steeringMessages) {
-				const text = theme.fg("dim", `Steering: ${message}`);
-				this.pendingMessagesContainer.addChild(new TruncatedText(text, 1, 0));
-			}
-			for (const message of followUpMessages) {
-				const text = theme.fg("dim", `Follow-up: ${message}`);
-				this.pendingMessagesContainer.addChild(new TruncatedText(text, 1, 0));
-			}
-			const dequeueHint = this.getAppKeyDisplay("dequeue");
-			const hintText = theme.fg("dim", `↳ ${dequeueHint} to edit all queued messages`);
-			this.pendingMessagesContainer.addChild(new TruncatedText(hintText, 1, 0));
-		}
+		// Queued chat messages now render in the composer stack via ComposerQueueComponent.
+		// Keep pendingMessagesContainer reserved for pending bash previews and other transient components.
+		this.ui.requestRender();
 	}
 
 	private restoreQueuedMessagesToEditor(options?: { abort?: boolean; currentText?: string }): number {

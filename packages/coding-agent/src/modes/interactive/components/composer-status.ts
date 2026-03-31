@@ -5,9 +5,6 @@ export interface ComposerStatusSnapshot {
 	mode: "chat" | "bash";
 	modelName: string;
 	thinkingLabel?: string;
-	queueCount: number;
-	steeringCount: number;
-	followUpCount: number;
 	isStreaming: boolean;
 	statusText?: string;
 	hints: string[];
@@ -15,7 +12,12 @@ export interface ComposerStatusSnapshot {
 
 function sanitizeInline(text: string | undefined): string | undefined {
 	if (!text) return undefined;
-	return text.replace(/[\r\n\t]+/g, " ").replace(/ +/g, " ").trim() || undefined;
+	return (
+		text
+			.replace(/[\r\n\t]+/g, " ")
+			.replace(/ +/g, " ")
+			.trim() || undefined
+	);
 }
 
 function fitLine(left: string, right: string, width: number): string {
@@ -53,24 +55,12 @@ export class ComposerStatusComponent implements Component {
 				? theme.bold(theme.fg("bashMode", "[bash]"))
 				: theme.bold(theme.fg("accent", "[chat]"));
 
-		const queueLabel =
-			snapshot.queueCount > 0
-				? theme.fg(
-						"warning",
-						`[queued:${snapshot.queueCount}${
-							snapshot.steeringCount > 0 || snapshot.followUpCount > 0
-								? ` s:${snapshot.steeringCount} f:${snapshot.followUpCount}`
-								: ""
-						}]`,
-					)
-				: undefined;
-
 		const stateLabel = snapshot.isStreaming ? theme.fg("warning", "[working]") : undefined;
 		const thinkingLabel = snapshot.thinkingLabel ? theme.fg("muted", `think:${snapshot.thinkingLabel}`) : undefined;
 		const modelLabel = theme.bold(snapshot.modelName);
 
-		const left = [modeBadge, stateLabel, queueLabel, modelLabel, thinkingLabel].filter(Boolean).join(" ");
-		const right = theme.fg("dim", sanitizeInline(snapshot.statusText) ?? "Type a prompt to get started");
+		const left = [modeBadge, stateLabel, modelLabel, thinkingLabel].filter(Boolean).join(" ");
+		const right = theme.fg("dim", sanitizeInline(snapshot.statusText) ?? "Ask, edit, or run bash");
 
 		const separator = theme.fg("borderMuted", " | ");
 		const hintsLine = snapshot.hints.join(separator);
