@@ -451,25 +451,23 @@ export class InteractiveMode {
 		if (this.options.verbose || !this.settingsManager.getQuietStartup()) {
 			const logo = theme.bold(theme.fg("accent", APP_NAME)) + theme.fg("dim", ` v${this.version}`);
 
-			const essentials = [
+			const launchHints = [
 				rawKeyHint("/", "commands"),
 				rawKeyHint("!", "bash"),
 				keyHint("submit", "send"),
 				appKeyHint(this.keybindings, "followUp", "queue"),
+				appKeyHint(this.keybindings, "externalEditor", "editor"),
+			].join(theme.fg("borderMuted", " • "));
+			const secondaryHints = [
 				appKeyHint(this.keybindings, "selectModel", "model"),
 				appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
-				appKeyHint(this.keybindings, "externalEditor", "editor"),
 				rawKeyHint("drop files", "attach"),
-			].join(theme.fg("borderMuted", " | "));
-			const escapeHints = [
-				appKeyHint(this.keybindings, "interrupt", "interrupt"),
-				appKeyHint(this.keybindings, "clear", "clear"),
 				rawKeyHint(`${appKey(this.keybindings, "clear")} twice`, "exit"),
-			].join(theme.fg("borderMuted", " | "));
-			this.builtInHeader = new Text(`${logo}\n${essentials}\n${escapeHints}`, 1, 0);
+				theme.fg("dim", "use /help for more"),
+			].join(theme.fg("borderMuted", " • "));
+			this.builtInHeader = new Text(`${logo}  ${launchHints}\n${secondaryHints}`, 1, 0);
 
 			// Setup UI layout
-			this.headerContainer.addChild(new Spacer(1));
 			this.headerContainer.addChild(this.builtInHeader);
 			this.headerContainer.addChild(new Spacer(1));
 
