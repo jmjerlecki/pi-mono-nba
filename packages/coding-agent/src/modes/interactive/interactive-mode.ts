@@ -374,7 +374,8 @@ export class InteractiveMode {
 
 	private getComposerStatusSnapshot(): ComposerStatusSnapshot {
 		const model = this.session.model;
-		const transcriptAtLatest = this.transcriptViewport.isAtLatest();
+		const transcriptState = this.transcriptViewport.getState();
+		const transcriptAtLatest = transcriptState.atLatest;
 		const thinkingLabel = model?.reasoning
 			? this.session.thinkingLevel === "off"
 				? "off"
@@ -388,6 +389,7 @@ export class InteractiveMode {
 					rawKeyHint("!!", "bash (no ctx)"),
 					rawKeyHint(submitLabel, "run"),
 					appKeyHint(this.keybindings, "transcriptPageUp", "history"),
+					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptPageDown", "down")] : []),
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
 					appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
@@ -399,6 +401,7 @@ export class InteractiveMode {
 					rawKeyHint("!", "bash"),
 					rawKeyHint(submitLabel, "send"),
 					appKeyHint(this.keybindings, "transcriptPageUp", "history"),
+					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptPageDown", "down")] : []),
 					appKeyHint(this.keybindings, "followUp", "queue"),
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
@@ -415,7 +418,11 @@ export class InteractiveMode {
 			statusText:
 				this.currentWorkingMessage ??
 				this.latestComposerStatus ??
-				(!transcriptAtLatest ? "Viewing earlier messages" : undefined),
+				(!transcriptAtLatest
+					? transcriptState.hiddenBelow > 0
+						? `${transcriptState.hiddenBelow} newer line${transcriptState.hiddenBelow === 1 ? "" : "s"} below`
+						: "Viewing earlier messages"
+					: undefined),
 			hints,
 		};
 	}

@@ -1,9 +1,16 @@
 import { type Component, truncateToWidth } from "@mariozechner/pi-tui";
 import { theme } from "../theme/theme.js";
 
+export interface TranscriptViewportState {
+	atLatest: boolean;
+	hiddenAbove: number;
+	hiddenBelow: number;
+}
+
 export class TranscriptViewportComponent implements Component {
 	private offsetFromBottom = 0;
 	private lastAvailableHeight = 0;
+	private lastState: TranscriptViewportState = { atLatest: true, hiddenAbove: 0, hiddenBelow: 0 };
 
 	constructor(
 		private readonly transcript: Component,
@@ -17,6 +24,10 @@ export class TranscriptViewportComponent implements Component {
 
 	isAtLatest(): boolean {
 		return this.offsetFromBottom === 0;
+	}
+
+	getState(): TranscriptViewportState {
+		return this.lastState;
 	}
 
 	scrollPageUp(): void {
@@ -49,6 +60,11 @@ export class TranscriptViewportComponent implements Component {
 		const end = Math.min(lines.length, start + availableHeight);
 		const hiddenAbove = start;
 		const hiddenBelow = Math.max(0, lines.length - end);
+		this.lastState = {
+			atLatest: this.offsetFromBottom === 0,
+			hiddenAbove,
+			hiddenBelow,
+		};
 		const pinnedContext = this.offsetFromBottom > 0 ? this.getPinnedContext?.() : undefined;
 
 		if (hiddenAbove === 0 && hiddenBelow === 0) {
