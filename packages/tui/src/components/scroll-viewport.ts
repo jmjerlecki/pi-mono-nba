@@ -24,12 +24,22 @@ export interface ScrollSearchResult {
 	lineIndex: number;
 }
 
+export interface ScrollViewportLineInfo {
+	lineIndex: number;
+	containsMatch: boolean;
+	isActiveMatch: boolean;
+	matchOrdinal?: number;
+	totalMatches?: number;
+	query?: string;
+}
+
 export interface ScrollViewportOptions {
 	getAvailableHeight: (width: number) => number;
 	getPinnedContext?: () => string | undefined;
 	getOverflowLine?: (width: number, info: ScrollOverflowInfo) => string;
 	getPinnedContextLine?: (width: number, context: string) => string;
 	highlightMatch?: (text: string, active: boolean) => string;
+	decorateLine?: (width: number, line: string, info: ScrollViewportLineInfo) => string;
 }
 
 interface ScrollViewportLineSource extends Component {
@@ -146,7 +156,11 @@ export class ScrollViewport implements Component {
 				const hiddenBelow = Math.max(0, totalLines - (trailing.startLine + trailing.lines.length));
 				this.lastVisibleStart = trailing.startLine;
 				this.lastState = { atLatest: true, hiddenAbove, hiddenBelow };
-				const highlightedTrailingLines = this.highlightVisibleLines(trailing.lines, trailing.startLine);
+				const highlightedTrailingLines = this.decorateVisibleLines(
+					this.highlightVisibleLines(trailing.lines, trailing.startLine),
+					trailing.startLine,
+					width,
+				);
 				if (hiddenAbove === 0 && hiddenBelow === 0) {
 					return highlightedTrailingLines;
 				}
@@ -183,7 +197,7 @@ export class ScrollViewport implements Component {
 			end = Math.min(totalLines, start + availableHeight);
 			visibleLines = this.renderLineSlice(width, start, end);
 		}
-		visibleLines = this.highlightVisibleLines(visibleLines, start);
+		visibleLines = this.decorateVisibleLines(this.highlightVisibleLines(visibleLines, start), start, width);
 		this.lastVisibleStart = start;
 		const hiddenAbove = start;
 		const hiddenBelow = Math.max(0, totalLines - end);
@@ -357,6 +371,27 @@ export class ScrollViewport implements Component {
 			}
 
 			return this.decorateLineRanges(line, ranges, lineIndex === this.lastSearchMatches[this.lastSearchMatchIndex]);
+		});
+	}
+
+	private decorateVisibleLines(lines: string[], startLine: number, width: number): string[] {
+		if (!this.options.decorateLine) {
+			return lines;
+		}
+
+		return lines.map((line, index) => {
+			const lineIndex = startLine + index;
+			const matchIndex = this.lastSearchMatches.indexOf(lineIndex);
+			return (
+				this.options.decorateLine?.(width, line, {
+					lineIndex,
+					containsMatch: matchIndex !== -1,
+					isActiveMatch: matchIndex !== -1 && matchIndex === this.lastSearchMatchIndex,
+					matchOrdinal: matchIndex !== -1 ? matchIndex + 1 : undefined,
+					totalMatches: this.lastSearchMatches.length || undefined,
+					query: this.lastSearchDisplayQuery || undefined,
+				}) ?? line
+			);
 		});
 	}
 

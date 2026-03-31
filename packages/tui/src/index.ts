@@ -20,6 +20,7 @@ export {
 	type ScrollOverflowInfo,
 	type ScrollSearchResult,
 	ScrollViewport,
+	type ScrollViewportLineInfo,
 	type ScrollViewportOptions,
 	type ScrollViewportState,
 } from "./components/scroll-viewport.js";

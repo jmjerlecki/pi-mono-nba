@@ -30,6 +30,7 @@ import {
 	matchesKey,
 	ProcessTerminal,
 	Spacer,
+	sliceWithWidth,
 	Text,
 	TUI,
 	truncateToWidth,
@@ -92,7 +93,11 @@ import { SettingsSelectorComponent } from "./components/settings-selector.js";
 import { SkillInvocationMessageComponent } from "./components/skill-invocation-message.js";
 import { ToolExecutionComponent } from "./components/tool-execution.js";
 import { TranscriptSearchComponent, type TranscriptSearchRequest } from "./components/transcript-search.js";
-import { type TranscriptOverflowInfo, TranscriptViewportComponent } from "./components/transcript-viewport.js";
+import {
+	type TranscriptOverflowInfo,
+	TranscriptViewportComponent,
+	type TranscriptViewportLineInfo,
+} from "./components/transcript-viewport.js";
 import { TreeSelectorComponent } from "./components/tree-selector.js";
 import { UserMessageComponent } from "./components/user-message.js";
 import { UserMessageSelectorComponent } from "./components/user-message-selector.js";
@@ -273,6 +278,7 @@ export class InteractiveMode {
 				truncateToWidth(theme.fg("muted", `Prompt: ${context}`), width, theme.fg("dim", "...")),
 			highlightMatch: (text, active) =>
 				active ? theme.inverse(theme.bold(text)) : theme.bg("selectedBg", theme.fg("text", text)),
+			decorateLine: (width, line, info) => this.renderTranscriptLineMarker(width, line, info),
 		});
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();
@@ -489,6 +495,23 @@ export class InteractiveMode {
 		const hint = theme.fg("muted", jumpHint);
 		const separator = theme.fg("borderMuted", "·");
 		return truncateToWidth(`${marker} ${scopeLabel} ${separator} ${count}${matches} ${separator} ${hint}`, width, "");
+	}
+
+	private renderTranscriptLineMarker(width: number, line: string, info: TranscriptViewportLineInfo): string {
+		if (!info.isActiveMatch || !info.matchOrdinal || !info.totalMatches) {
+			return line;
+		}
+
+		const chevron = theme.fg("accent", "›");
+		const badge = theme.inverse(theme.bold(` ${info.matchOrdinal}/${info.totalMatches} `));
+		const prefix = `${chevron} ${badge} `;
+		const prefixWidth = visibleWidth(prefix);
+		if (prefixWidth >= width) {
+			return truncateToWidth(prefix, width, "");
+		}
+
+		const remainder = sliceWithWidth(line, 0, width - prefixWidth, true).text;
+		return `${prefix}${remainder}`;
 	}
 
 	private stopLoadingAnimation(clearStatus = true): void {
