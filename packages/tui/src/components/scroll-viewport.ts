@@ -1,5 +1,5 @@
 import type { Component } from "../tui.js";
-import { stripAnsiSequences } from "../utils.js";
+import { sliceWithWidth, stripAnsiSequences, visibleWidth } from "../utils.js";
 
 export interface ScrollViewportState {
 	atLatest: boolean;
@@ -8,6 +8,14 @@ export interface ScrollViewportState {
 }
 
 export type ScrollOverflowDirection = "earlier" | "newer";
+
+export interface ScrollOverflowInfo {
+	direction: ScrollOverflowDirection;
+	hiddenLineCount: number;
+	hiddenMatchCount: number;
+	activeMatchHidden: boolean;
+	query?: string;
+}
 
 export interface ScrollSearchResult {
 	query: string;
@@ -19,8 +27,9 @@ export interface ScrollSearchResult {
 export interface ScrollViewportOptions {
 	getAvailableHeight: (width: number) => number;
 	getPinnedContext?: () => string | undefined;
-	getOverflowLine?: (width: number, direction: ScrollOverflowDirection, hiddenLineCount: number) => string;
+	getOverflowLine?: (width: number, info: ScrollOverflowInfo) => string;
 	getPinnedContextLine?: (width: number, context: string) => string;
+	highlightMatch?: (text: string, active: boolean) => string;
 }
 
 interface ScrollViewportLineSource extends Component {
@@ -58,6 +67,23 @@ export class ScrollViewport implements Component {
 
 	getSearchQuery(): string | undefined {
 		return this.lastSearchDisplayQuery || undefined;
+	}
+
+	getSearchSummary():
+		| {
+				query: string;
+				totalMatches: number;
+				activeMatch: number;
+		  }
+		| undefined {
+		if (!this.lastSearchDisplayQuery || this.lastSearchMatches.length === 0) {
+			return undefined;
+		}
+		return {
+			query: this.lastSearchDisplayQuery,
+			totalMatches: this.lastSearchMatches.length,
+			activeMatch: this.lastSearchMatchIndex >= 0 ? this.lastSearchMatchIndex + 1 : 0,
+		};
 	}
 
 	isAtLatest(): boolean {
@@ -120,17 +146,20 @@ export class ScrollViewport implements Component {
 				const hiddenBelow = Math.max(0, totalLines - (trailing.startLine + trailing.lines.length));
 				this.lastVisibleStart = trailing.startLine;
 				this.lastState = { atLatest: true, hiddenAbove, hiddenBelow };
+				const highlightedTrailingLines = this.highlightVisibleLines(trailing.lines, trailing.startLine);
 				if (hiddenAbove === 0 && hiddenBelow === 0) {
-					return trailing.lines;
+					return highlightedTrailingLines;
 				}
 
 				const rendered: string[] = [];
 				if (hiddenAbove > 0) {
-					rendered.push(this.renderOverflowLine(width, "earlier", hiddenAbove));
+					rendered.push(this.renderOverflowLine(width, "earlier", hiddenAbove, trailing.startLine));
 				}
-				rendered.push(...trailing.lines.slice(hiddenAbove > 0 ? 1 : 0));
+				rendered.push(...highlightedTrailingLines.slice(hiddenAbove > 0 ? 1 : 0));
 				if (hiddenBelow > 0) {
-					rendered.push(this.renderOverflowLine(width, "newer", hiddenBelow));
+					rendered.push(
+						this.renderOverflowLine(width, "newer", hiddenBelow, trailing.startLine + trailing.lines.length),
+					);
 				}
 				return rendered;
 			}
@@ -154,6 +183,7 @@ export class ScrollViewport implements Component {
 			end = Math.min(totalLines, start + availableHeight);
 			visibleLines = this.renderLineSlice(width, start, end);
 		}
+		visibleLines = this.highlightVisibleLines(visibleLines, start);
 		this.lastVisibleStart = start;
 		const hiddenAbove = start;
 		const hiddenBelow = Math.max(0, totalLines - end);
@@ -177,7 +207,14 @@ export class ScrollViewport implements Component {
 			if (pinnedContext && this.options.getPinnedContextLine) {
 				return [this.options.getPinnedContextLine(width, pinnedContext)];
 			}
-			return [this.renderOverflowLine(width, hiddenAbove > 0 ? "earlier" : "newer", hiddenAbove || hiddenBelow)];
+			return [
+				this.renderOverflowLine(
+					width,
+					hiddenAbove > 0 ? "earlier" : "newer",
+					hiddenAbove || hiddenBelow,
+					hiddenAbove > 0 ? 0 : end,
+				),
+			];
 		}
 
 		const trimmedVisibleLines = visibleLines.slice(topReservedRows > 0 ? 1 : 0, hiddenBelow > 0 ? -1 : undefined);
@@ -185,11 +222,11 @@ export class ScrollViewport implements Component {
 		if (pinnedContext && this.options.getPinnedContextLine) {
 			rendered.push(this.options.getPinnedContextLine(width, pinnedContext));
 		} else if (hiddenAbove > 0) {
-			rendered.push(this.renderOverflowLine(width, "earlier", hiddenAbove));
+			rendered.push(this.renderOverflowLine(width, "earlier", hiddenAbove, 0));
 		}
 		rendered.push(...trimmedVisibleLines);
 		if (hiddenBelow > 0) {
-			rendered.push(this.renderOverflowLine(width, "newer", hiddenBelow));
+			rendered.push(this.renderOverflowLine(width, "newer", hiddenBelow, end));
 		}
 		return rendered;
 	}
@@ -273,14 +310,102 @@ export class ScrollViewport implements Component {
 		this.offsetFromBottom = Math.max(0, this.lastRenderedPlainLines.length - targetEnd);
 	}
 
-	private renderOverflowLine(width: number, direction: ScrollOverflowDirection, hiddenLineCount: number): string {
+	private renderOverflowLine(
+		width: number,
+		direction: ScrollOverflowDirection,
+		hiddenLineCount: number,
+		hiddenStartLine: number,
+	): string {
+		const hiddenEndLine = hiddenStartLine + hiddenLineCount;
+		const hiddenMatchCount = this.countMatchesInRange(hiddenStartLine, hiddenEndLine);
+		const activeLineIndex =
+			this.lastSearchMatchIndex >= 0 ? this.lastSearchMatches[this.lastSearchMatchIndex] : undefined;
+		const info: ScrollOverflowInfo = {
+			direction,
+			hiddenLineCount,
+			hiddenMatchCount,
+			activeMatchHidden:
+				activeLineIndex !== undefined && activeLineIndex >= hiddenStartLine && activeLineIndex < hiddenEndLine,
+			query: this.lastSearchDisplayQuery || undefined,
+		};
 		if (this.options.getOverflowLine) {
-			return this.options.getOverflowLine(width, direction, hiddenLineCount);
+			return this.options.getOverflowLine(width, info);
 		}
 
 		const suffix = hiddenLineCount === 1 ? "" : "s";
-		const text = `... ${hiddenLineCount} ${direction} line${suffix}`;
+		const matchSuffix =
+			hiddenMatchCount > 0 ? ` | ${hiddenMatchCount} match${hiddenMatchCount === 1 ? "" : "es"}` : "";
+		const text = `... ${hiddenLineCount} ${direction} line${suffix}${matchSuffix}`;
 		return text.length > width ? text.slice(0, width) : text;
+	}
+
+	private highlightVisibleLines(lines: string[], startLine: number): string[] {
+		if (!this.options.highlightMatch || !this.lastSearchQuery) {
+			return lines;
+		}
+
+		return lines.map((line, index) => {
+			const lineIndex = startLine + index;
+			if (!this.lineContainsMatch(lineIndex)) {
+				return line;
+			}
+
+			const plainLine = stripAnsiSequences(line).replace(/\t/g, "   ");
+			const ranges = this.findMatchRanges(plainLine, this.lastSearchQuery);
+			if (ranges.length === 0) {
+				return line;
+			}
+
+			return this.decorateLineRanges(line, ranges, lineIndex === this.lastSearchMatches[this.lastSearchMatchIndex]);
+		});
+	}
+
+	private decorateLineRanges(line: string, ranges: Array<{ start: number; length: number }>, active: boolean): string {
+		let result = "";
+		let cursor = 0;
+		const lineWidth = visibleWidth(line);
+
+		for (const range of ranges) {
+			if (range.start > cursor) {
+				result += sliceWithWidth(line, cursor, range.start - cursor).text;
+			}
+			const segment = sliceWithWidth(line, range.start, range.length).text;
+			result += this.options.highlightMatch?.(segment, active) ?? segment;
+			cursor = range.start + range.length;
+		}
+
+		if (cursor < lineWidth) {
+			result += sliceWithWidth(line, cursor, lineWidth - cursor).text;
+		}
+		return result;
+	}
+
+	private findMatchRanges(line: string, query: string): Array<{ start: number; length: number }> {
+		const ranges: Array<{ start: number; length: number }> = [];
+		let searchStart = 0;
+		while (searchStart < line.length) {
+			const index = line.toLowerCase().indexOf(query, searchStart);
+			if (index === -1) {
+				break;
+			}
+			ranges.push({ start: index, length: query.length });
+			searchStart = index + query.length;
+		}
+		return ranges;
+	}
+
+	private lineContainsMatch(lineIndex: number): boolean {
+		return this.lastSearchMatches.includes(lineIndex);
+	}
+
+	private countMatchesInRange(start: number, end: number): number {
+		let count = 0;
+		for (const lineIndex of this.lastSearchMatches) {
+			if (lineIndex >= start && lineIndex < end) {
+				count++;
+			}
+		}
+		return count;
 	}
 
 	private getTotalLineCount(width: number): number {

@@ -92,7 +92,7 @@ import { SettingsSelectorComponent } from "./components/settings-selector.js";
 import { SkillInvocationMessageComponent } from "./components/skill-invocation-message.js";
 import { ToolExecutionComponent } from "./components/tool-execution.js";
 import { TranscriptSearchComponent, type TranscriptSearchRequest } from "./components/transcript-search.js";
-import { TranscriptViewportComponent } from "./components/transcript-viewport.js";
+import { type TranscriptOverflowInfo, TranscriptViewportComponent } from "./components/transcript-viewport.js";
 import { TreeSelectorComponent } from "./components/tree-selector.js";
 import { UserMessageComponent } from "./components/user-message.js";
 import { UserMessageSelectorComponent } from "./components/user-message-selector.js";
@@ -268,17 +268,11 @@ export class InteractiveMode {
 		this.transcriptViewport = new TranscriptViewportComponent(this.chatContainer, {
 			getAvailableHeight: (width) => this.getChatViewportHeight(width),
 			getPinnedContext: () => this.getLatestUserPromptPreview(),
-			getOverflowLine: (width, direction, hiddenLineCount) => {
-				const countLabel = `${hiddenLineCount} ${direction} line${hiddenLineCount === 1 ? "" : "s"}`;
-				const hint =
-					direction === "newer"
-						? `${this.getAppKeyDisplay("transcriptLatest")} to latest`
-						: `${this.getAppKeyDisplay("transcriptLineUp")} up`;
-				const label = theme.fg("dim", `... ${countLabel} | ${hint}`);
-				return truncateToWidth(label, width, "");
-			},
+			getOverflowLine: (width, info) => this.renderTranscriptOverflowLine(width, info),
 			getPinnedContextLine: (width, context) =>
 				truncateToWidth(theme.fg("muted", `Prompt: ${context}`), width, theme.fg("dim", "...")),
+			highlightMatch: (text, active) =>
+				active ? theme.inverse(theme.bold(text)) : theme.bg("selectedBg", theme.fg("text", text)),
 		});
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();
@@ -460,6 +454,26 @@ export class InteractiveMode {
 
 	private setWorkingStatus(message?: string): void {
 		this.currentWorkingMessage = message;
+	}
+
+	private renderTranscriptOverflowLine(width: number, info: TranscriptOverflowInfo): string {
+		const icon = info.direction === "earlier" ? "▲" : "▼";
+		const lineLabel = `${info.hiddenLineCount} ${info.direction} line${info.hiddenLineCount === 1 ? "" : "s"}`;
+		const jumpHint =
+			info.direction === "earlier"
+				? `${this.getAppKeyDisplay("transcriptPageUp")} page  ${this.getAppKeyDisplay("transcriptOldest")} oldest`
+				: `${this.getAppKeyDisplay("transcriptLineDown")} down  ${this.getAppKeyDisplay("transcriptLatest")} latest`;
+		const searchLabel =
+			info.hiddenMatchCount > 0
+				? info.activeMatchHidden
+					? "  active match"
+					: `  ${info.hiddenMatchCount} match${info.hiddenMatchCount === 1 ? "" : "es"}`
+				: "";
+		const marker = theme.fg("borderMuted", icon);
+		const count = theme.fg("dim", lineLabel);
+		const matches = searchLabel ? theme.fg(info.activeMatchHidden ? "accent" : "muted", searchLabel) : "";
+		const hint = theme.fg("muted", jumpHint);
+		return truncateToWidth(`${marker} ${count}${matches} ${theme.fg("borderMuted", "·")} ${hint}`, width, "");
 	}
 
 	private stopLoadingAnimation(clearStatus = true): void {

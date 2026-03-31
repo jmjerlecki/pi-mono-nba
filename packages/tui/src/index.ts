@@ -17,6 +17,7 @@ export { Loader } from "./components/loader.js";
 export { type DefaultTextStyle, Markdown, type MarkdownTheme } from "./components/markdown.js";
 export {
 	type ScrollOverflowDirection,
+	type ScrollOverflowInfo,
 	type ScrollSearchResult,
 	ScrollViewport,
 	type ScrollViewportOptions,
