@@ -392,6 +392,7 @@ export class InteractiveMode {
 		const transcriptAtLatest = transcriptState.atLatest;
 		const transcriptSearchQuery = this.transcriptViewport.getSearchQuery();
 		const transcriptSearchSummary = this.transcriptViewport.getSearchSummary();
+		const transcriptLiveHint = appKeyHint(this.keybindings, "transcriptLatest", "live");
 		const thinkingLabel = model?.reasoning
 			? this.session.thinkingLevel === "off"
 				? "off"
@@ -416,7 +417,7 @@ export class InteractiveMode {
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
 					appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
-					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptLatest", "latest")] : []),
+					...(!transcriptAtLatest ? [transcriptLiveHint] : []),
 					...(this.loadingAnimation ? [rawKeyHint(interruptLabel, "interrupt")] : []),
 				]
 			: [
@@ -436,7 +437,7 @@ export class InteractiveMode {
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
 					appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
-					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptLatest", "latest")] : []),
+					...(!transcriptAtLatest ? [transcriptLiveHint] : []),
 					...(this.loadingAnimation ? [rawKeyHint(interruptLabel, "interrupt")] : []),
 				];
 
@@ -450,9 +451,13 @@ export class InteractiveMode {
 				this.currentWorkingMessage ??
 				this.latestComposerStatus ??
 				(!transcriptAtLatest
-					? transcriptState.hiddenBelow > 0
-						? `Browsing history • ${transcriptState.hiddenBelow} live line${transcriptState.hiddenBelow === 1 ? "" : "s"} below`
-						: "Viewing earlier messages"
+					? transcriptSearchSummary
+						? transcriptState.hiddenBelow > 0
+							? `Search ${transcriptSearchSummary.activeMatch}/${transcriptSearchSummary.totalMatches} • ${transcriptState.hiddenBelow} live line${transcriptState.hiddenBelow === 1 ? "" : "s"} below`
+							: `Search ${transcriptSearchSummary.activeMatch}/${transcriptSearchSummary.totalMatches} in history`
+						: transcriptState.hiddenBelow > 0
+							? `Browsing history • ${transcriptState.hiddenBelow} live line${transcriptState.hiddenBelow === 1 ? "" : "s"} below`
+							: "Browsing history"
 					: undefined),
 			hints,
 		};
