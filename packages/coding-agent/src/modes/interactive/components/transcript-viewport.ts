@@ -8,6 +8,7 @@ export class TranscriptViewportComponent implements Component {
 	constructor(
 		private readonly transcript: Component,
 		private readonly getAvailableHeight: (width: number) => number,
+		private readonly getPinnedContext?: () => string | undefined,
 	) {}
 
 	invalidate(): void {
@@ -48,22 +49,30 @@ export class TranscriptViewportComponent implements Component {
 		const end = Math.min(lines.length, start + availableHeight);
 		const hiddenAbove = start;
 		const hiddenBelow = Math.max(0, lines.length - end);
+		const pinnedContext = this.offsetFromBottom > 0 ? this.getPinnedContext?.() : undefined;
 
 		if (hiddenAbove === 0 && hiddenBelow === 0) {
 			return lines.slice(start, end);
 		}
 
 		const visibleLines = lines.slice(start, end);
-		const overflowRows = Number(hiddenAbove > 0) + Number(hiddenBelow > 0);
+		const topReservedRows = Number(Boolean(pinnedContext) || hiddenAbove > 0);
+		const bottomReservedRows = Number(hiddenBelow > 0);
+		const overflowRows = topReservedRows + bottomReservedRows;
 		const contentHeight = Math.max(0, availableHeight - overflowRows);
 
 		if (contentHeight === 0) {
+			if (pinnedContext) {
+				return [this.renderPinnedContext(width, pinnedContext)];
+			}
 			return [this.renderOverflowLine(width, hiddenAbove > 0 ? "earlier" : "newer", hiddenAbove || hiddenBelow)];
 		}
 
-		const trimmedVisibleLines = visibleLines.slice(hiddenAbove > 0 ? 1 : 0, hiddenBelow > 0 ? -1 : undefined);
+		const trimmedVisibleLines = visibleLines.slice(topReservedRows > 0 ? 1 : 0, hiddenBelow > 0 ? -1 : undefined);
 		const rendered: string[] = [];
-		if (hiddenAbove > 0) {
+		if (pinnedContext) {
+			rendered.push(this.renderPinnedContext(width, pinnedContext));
+		} else if (hiddenAbove > 0) {
 			rendered.push(this.renderOverflowLine(width, "earlier", hiddenAbove));
 		}
 		rendered.push(...trimmedVisibleLines);
@@ -80,5 +89,9 @@ export class TranscriptViewportComponent implements Component {
 	private renderOverflowLine(width: number, direction: "earlier" | "newer", hiddenLineCount: number): string {
 		const label = theme.fg("dim", `... ${hiddenLineCount} ${direction} line${hiddenLineCount === 1 ? "" : "s"}`);
 		return truncateToWidth(label, width, "");
+	}
+
+	private renderPinnedContext(width: number, context: string): string {
+		return truncateToWidth(theme.fg("muted", `Prompt: ${context}`), width, theme.fg("dim", "..."));
 	}
 }

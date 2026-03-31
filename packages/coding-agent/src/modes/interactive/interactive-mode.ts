@@ -262,8 +262,10 @@ export class InteractiveMode {
 		this.ui.setClearOnShrink(this.settingsManager.getClearOnShrink());
 		this.headerContainer = new Container();
 		this.chatContainer = new Container();
-		this.transcriptViewport = new TranscriptViewportComponent(this.chatContainer, (width) =>
-			this.getChatViewportHeight(width),
+		this.transcriptViewport = new TranscriptViewportComponent(
+			this.chatContainer,
+			(width) => this.getChatViewportHeight(width),
+			() => this.getLatestUserPromptPreview(),
 		);
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();
@@ -2492,6 +2494,26 @@ export class InteractiveMode {
 				? [{ type: "text", text: message.content }]
 				: message.content.filter((c: { type: string }) => c.type === "text");
 		return textBlocks.map((c) => (c as { text: string }).text).join("");
+	}
+
+	private getLatestUserPromptPreview(): string | undefined {
+		const entries = this.sessionManager.getEntries();
+		for (let i = entries.length - 1; i >= 0; i--) {
+			const entry = entries[i];
+			if (entry.type !== "message" || entry.message.role !== "user") {
+				continue;
+			}
+
+			const preview = this.getUserMessageText(entry.message)
+				.replace(/[\r\n\t]+/g, " ")
+				.replace(/ +/g, " ")
+				.trim();
+			if (preview) {
+				return preview;
+			}
+		}
+
+		return undefined;
 	}
 
 	/**
