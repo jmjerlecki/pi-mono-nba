@@ -254,6 +254,28 @@ export function visibleWidth(str: string): number {
 }
 
 /**
+ * Strip supported ANSI/OSC/APC escape sequences from a string.
+ */
+export function stripAnsiSequences(str: string): string {
+	if (!str.includes("\x1b")) {
+		return str;
+	}
+
+	let stripped = "";
+	let i = 0;
+	while (i < str.length) {
+		const ansi = extractAnsiCode(str, i);
+		if (ansi) {
+			i += ansi.length;
+			continue;
+		}
+		stripped += str[i];
+		i++;
+	}
+	return stripped;
+}
+
+/**
  * Extract ANSI escape sequences from a string at the given position.
  */
 export function extractAnsiCode(str: string, pos: number): { code: string; length: number } | null {

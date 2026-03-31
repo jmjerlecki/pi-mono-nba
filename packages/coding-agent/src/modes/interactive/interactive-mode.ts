@@ -32,6 +32,8 @@ import {
 	Spacer,
 	Text,
 	TUI,
+	truncateToWidth,
+	VirtualizedContainer,
 	visibleWidth,
 } from "@mariozechner/pi-tui";
 import { spawn, spawnSync } from "child_process";
@@ -145,7 +147,7 @@ export interface InteractiveModeOptions {
 export class InteractiveMode {
 	private session: AgentSession;
 	private ui: TUI;
-	private chatContainer: Container;
+	private chatContainer: VirtualizedContainer;
 	private transcriptViewport: TranscriptViewportComponent;
 	private pendingMessagesContainer: Container;
 	private statusContainer: Container;
@@ -262,16 +264,22 @@ export class InteractiveMode {
 		this.ui = new TUI(new ProcessTerminal(), this.settingsManager.getShowHardwareCursor());
 		this.ui.setClearOnShrink(this.settingsManager.getClearOnShrink());
 		this.headerContainer = new Container();
-		this.chatContainer = new Container();
-		this.transcriptViewport = new TranscriptViewportComponent(
-			this.chatContainer,
-			(width) => this.getChatViewportHeight(width),
-			() => this.getLatestUserPromptPreview(),
-			(direction) =>
-				direction === "newer"
-					? `${this.getAppKeyDisplay("transcriptLatest")} to latest`
-					: `${this.getAppKeyDisplay("transcriptLineUp")} up`,
-		);
+		this.chatContainer = new VirtualizedContainer();
+		this.transcriptViewport = new TranscriptViewportComponent(this.chatContainer, {
+			getAvailableHeight: (width) => this.getChatViewportHeight(width),
+			getPinnedContext: () => this.getLatestUserPromptPreview(),
+			getOverflowLine: (width, direction, hiddenLineCount) => {
+				const countLabel = `${hiddenLineCount} ${direction} line${hiddenLineCount === 1 ? "" : "s"}`;
+				const hint =
+					direction === "newer"
+						? `${this.getAppKeyDisplay("transcriptLatest")} to latest`
+						: `${this.getAppKeyDisplay("transcriptLineUp")} up`;
+				const label = theme.fg("dim", `... ${countLabel} | ${hint}`);
+				return truncateToWidth(label, width, "");
+			},
+			getPinnedContextLine: (width, context) =>
+				truncateToWidth(theme.fg("muted", `Prompt: ${context}`), width, theme.fg("dim", "...")),
+		});
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();
 		this.widgetContainerAbove = new Container();
