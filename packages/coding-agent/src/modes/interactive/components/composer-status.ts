@@ -20,6 +20,26 @@ function sanitizeInline(text: string | undefined): string | undefined {
 	);
 }
 
+function formatStatusText(text: string | undefined): string {
+	const sanitized = sanitizeInline(text);
+	if (!sanitized) {
+		return theme.fg("dim", "Ask, edit, or run bash");
+	}
+
+	const normalized = sanitized.toLowerCase();
+	if (normalized.startsWith("error:") || normalized.startsWith("failed")) {
+		return theme.fg("error", sanitized);
+	}
+	if (normalized.startsWith("warning:")) {
+		return theme.fg("warning", sanitized);
+	}
+	if (normalized.includes("cancelled")) {
+		return theme.fg("dim", sanitized);
+	}
+
+	return theme.fg("muted", sanitized);
+}
+
 function fitLine(left: string, right: string, width: number): string {
 	if (width <= 0) return "";
 
@@ -60,7 +80,7 @@ export class ComposerStatusComponent implements Component {
 		const modelLabel = theme.bold(snapshot.modelName);
 
 		const left = [modeBadge, stateLabel, modelLabel, thinkingLabel].filter(Boolean).join(" ");
-		const right = theme.fg("dim", sanitizeInline(snapshot.statusText) ?? "Ask, edit, or run bash");
+		const right = formatStatusText(snapshot.statusText);
 
 		const separator = theme.fg("borderMuted", " | ");
 		const hintsLine = snapshot.hints.join(separator);

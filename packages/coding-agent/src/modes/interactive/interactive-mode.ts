@@ -2451,13 +2451,18 @@ export class InteractiveMode {
 	}
 
 	/**
-	 * Show a status message in the chat.
+	 * Update the composer status, optionally persisting a status line into the transcript.
 	 *
-	 * If multiple status messages are emitted back-to-back (without anything else being added to the chat),
-	 * we update the previous status line instead of appending new ones to avoid log spam.
+	 * Persistent transcript entries are reserved for statuses with durable values the user may need
+	 * to reference later, such as exported paths or share URLs.
 	 */
-	private showStatus(message: string): void {
+	private showStatus(message: string, options?: { persistToChat?: boolean }): void {
 		this.latestComposerStatus = message;
+		if (!options?.persistToChat) {
+			this.ui.requestRender();
+			return;
+		}
+
 		const children = this.chatContainer.children;
 		const last = children.length > 0 ? children[children.length - 1] : undefined;
 		const secondLast = children.length > 1 ? children[children.length - 2] : undefined;
@@ -3833,7 +3838,9 @@ export class InteractiveMode {
 			restoreEditor();
 			this.session.modelRegistry.refresh();
 			await this.updateAvailableProviderCount();
-			this.showStatus(`Logged in to ${providerName}. Credentials saved to ${getAuthPath()}`);
+			this.showStatus(`Logged in to ${providerName}. Credentials saved to ${getAuthPath()}`, {
+				persistToChat: true,
+			});
 		} catch (error: unknown) {
 			restoreEditor();
 			const errorMsg = error instanceof Error ? error.message : String(error);
@@ -3924,7 +3931,7 @@ export class InteractiveMode {
 
 		try {
 			const filePath = await this.session.exportToHtml(outputPath);
-			this.showStatus(`Session exported to: ${filePath}`);
+			this.showStatus(`Session exported to: ${filePath}`, { persistToChat: true });
 		} catch (error: unknown) {
 			this.showError(`Failed to export session: ${error instanceof Error ? error.message : "Unknown error"}`);
 		}
@@ -4015,7 +4022,7 @@ export class InteractiveMode {
 
 			// Create the preview URL
 			const previewUrl = getShareViewerUrl(gistId);
-			this.showStatus(`Share URL: ${previewUrl}\nGist: ${gistUrl}`);
+			this.showStatus(`Share URL: ${previewUrl}\nGist: ${gistUrl}`, { persistToChat: true });
 		} catch (error: unknown) {
 			if (!loader.signal.aborted) {
 				restoreEditor();
