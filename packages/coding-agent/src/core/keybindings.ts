@@ -25,8 +25,11 @@ export interface AppKeybindings {
 	"app.editor.external": true;
 	"app.message.followUp": true;
 	"app.message.dequeue": true;
+	"app.transcript.lineUp": true;
+	"app.transcript.lineDown": true;
 	"app.transcript.pageUp": true;
 	"app.transcript.pageDown": true;
+	"app.transcript.oldest": true;
 	"app.transcript.latest": true;
 	"app.clipboard.pasteImage": true;
 	"app.session.new": true;
@@ -92,9 +95,21 @@ export const KEYBINDINGS = {
 		defaultKeys: "alt+pageup",
 		description: "Scroll transcript up",
 	},
+	"app.transcript.lineUp": {
+		defaultKeys: "alt+k",
+		description: "Scroll transcript up one line",
+	},
+	"app.transcript.lineDown": {
+		defaultKeys: "alt+j",
+		description: "Scroll transcript down one line",
+	},
 	"app.transcript.pageDown": {
 		defaultKeys: "alt+pagedown",
 		description: "Scroll transcript down",
+	},
+	"app.transcript.oldest": {
+		defaultKeys: "alt+home",
+		description: "Jump transcript to oldest visible point",
 	},
 	"app.transcript.latest": {
 		defaultKeys: "alt+down",
@@ -184,8 +199,11 @@ const KEYBINDING_NAME_MIGRATIONS = {
 	externalEditor: "app.editor.external",
 	followUp: "app.message.followUp",
 	dequeue: "app.message.dequeue",
+	transcriptLineUp: "app.transcript.lineUp",
+	transcriptLineDown: "app.transcript.lineDown",
 	transcriptPageUp: "app.transcript.pageUp",
 	transcriptPageDown: "app.transcript.pageDown",
+	transcriptOldest: "app.transcript.oldest",
 	transcriptLatest: "app.transcript.latest",
 	pasteImage: "app.clipboard.pasteImage",
 	newSession: "app.session.new",

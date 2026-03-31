@@ -269,7 +269,7 @@ export class InteractiveMode {
 			(direction) =>
 				direction === "newer"
 					? `${this.getAppKeyDisplay("transcriptLatest")} to latest`
-					: `${this.getAppKeyDisplay("transcriptPageDown")} down`,
+					: `${this.getAppKeyDisplay("transcriptLineUp")} up`,
 		);
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();
@@ -392,8 +392,8 @@ export class InteractiveMode {
 					rawKeyHint("!", "bash"),
 					rawKeyHint("!!", "bash (no ctx)"),
 					rawKeyHint(submitLabel, "run"),
-					appKeyHint(this.keybindings, "transcriptPageUp", "history"),
-					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptPageDown", "down")] : []),
+					appKeyHint(this.keybindings, "transcriptLineUp", "history"),
+					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptLineDown", "down")] : []),
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
 					appKeyHint(this.keybindings, "cycleThinkingLevel", "thinking"),
@@ -404,8 +404,8 @@ export class InteractiveMode {
 					rawKeyHint("/", "commands"),
 					rawKeyHint("!", "bash"),
 					rawKeyHint(submitLabel, "send"),
-					appKeyHint(this.keybindings, "transcriptPageUp", "history"),
-					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptPageDown", "down")] : []),
+					appKeyHint(this.keybindings, "transcriptLineUp", "history"),
+					...(!transcriptAtLatest ? [appKeyHint(this.keybindings, "transcriptLineDown", "down")] : []),
 					appKeyHint(this.keybindings, "followUp", "queue"),
 					appKeyHint(this.keybindings, "externalEditor", "editor"),
 					appKeyHint(this.keybindings, "selectModel", "model"),
@@ -1982,8 +1982,11 @@ export class InteractiveMode {
 		this.defaultEditor.onAction("externalEditor", () => this.openExternalEditor());
 		this.defaultEditor.onAction("followUp", () => this.handleFollowUp());
 		this.defaultEditor.onAction("dequeue", () => this.handleDequeue());
+		this.defaultEditor.onAction("transcriptLineUp", () => this.handleTranscriptLineUp());
+		this.defaultEditor.onAction("transcriptLineDown", () => this.handleTranscriptLineDown());
 		this.defaultEditor.onAction("transcriptPageUp", () => this.handleTranscriptPageUp());
 		this.defaultEditor.onAction("transcriptPageDown", () => this.handleTranscriptPageDown());
+		this.defaultEditor.onAction("transcriptOldest", () => this.handleTranscriptJumpToOldest());
 		this.defaultEditor.onAction("transcriptLatest", () => this.handleTranscriptJumpToLatest());
 		this.defaultEditor.onAction("newSession", () => this.handleClearCommand());
 		this.defaultEditor.onAction("tree", () => this.showTreeSelector());
@@ -2010,8 +2013,23 @@ export class InteractiveMode {
 		this.ui.requestRender();
 	}
 
+	private handleTranscriptLineUp(): void {
+		this.transcriptViewport.scrollLineUp();
+		this.ui.requestRender();
+	}
+
+	private handleTranscriptLineDown(): void {
+		this.transcriptViewport.scrollLineDown();
+		this.ui.requestRender();
+	}
+
 	private handleTranscriptPageDown(): void {
 		this.transcriptViewport.scrollPageDown();
+		this.ui.requestRender();
+	}
+
+	private handleTranscriptJumpToOldest(): void {
+		this.transcriptViewport.jumpToOldest();
 		this.ui.requestRender();
 	}
 
@@ -4280,8 +4298,11 @@ export class InteractiveMode {
 		const externalEditor = this.getAppKeyDisplay("externalEditor");
 		const followUp = this.getAppKeyDisplay("followUp");
 		const dequeue = this.getAppKeyDisplay("dequeue");
+		const transcriptLineUp = this.getAppKeyDisplay("transcriptLineUp");
+		const transcriptLineDown = this.getAppKeyDisplay("transcriptLineDown");
 		const transcriptPageUp = this.getAppKeyDisplay("transcriptPageUp");
 		const transcriptPageDown = this.getAppKeyDisplay("transcriptPageDown");
+		const transcriptOldest = this.getAppKeyDisplay("transcriptOldest");
 		const transcriptLatest = this.getAppKeyDisplay("transcriptLatest");
 
 		let hotkeys = `
@@ -4325,8 +4346,9 @@ export class InteractiveMode {
 | \`${externalEditor}\` | Edit message in external editor |
 | \`${followUp}\` | Queue follow-up message |
 | \`${dequeue}\` | Restore queued messages |
+| \`${transcriptLineUp}\` / \`${transcriptLineDown}\` | Scroll transcript by line |
 | \`${transcriptPageUp}\` / \`${transcriptPageDown}\` | Scroll transcript |
-| \`${transcriptLatest}\` | Jump transcript to latest |
+| \`${transcriptOldest}\` / \`${transcriptLatest}\` | Jump transcript to oldest/latest |
 | \`Ctrl+V\` | Paste image from clipboard |
 | \`/\` | Slash commands |
 | \`!\` | Run bash command |

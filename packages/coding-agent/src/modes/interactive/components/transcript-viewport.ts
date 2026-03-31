@@ -12,6 +12,7 @@ export type TranscriptOverflowDirection = "earlier" | "newer";
 export class TranscriptViewportComponent implements Component {
 	private offsetFromBottom = 0;
 	private lastAvailableHeight = 0;
+	private lastMaxOffset = 0;
 	private lastState: TranscriptViewportState = { atLatest: true, hiddenAbove: 0, hiddenBelow: 0 };
 
 	constructor(
@@ -37,8 +38,20 @@ export class TranscriptViewportComponent implements Component {
 		this.offsetFromBottom += this.getPageStep();
 	}
 
+	scrollLineUp(): void {
+		this.offsetFromBottom += 1;
+	}
+
+	scrollLineDown(): void {
+		this.offsetFromBottom = Math.max(0, this.offsetFromBottom - 1);
+	}
+
 	scrollPageDown(): void {
 		this.offsetFromBottom = Math.max(0, this.offsetFromBottom - this.getPageStep());
+	}
+
+	jumpToOldest(): void {
+		this.offsetFromBottom = this.lastMaxOffset;
 	}
 
 	jumpToLatest(): void {
@@ -54,6 +67,7 @@ export class TranscriptViewportComponent implements Component {
 		}
 
 		const maxOffset = Math.max(0, lines.length - availableHeight);
+		this.lastMaxOffset = maxOffset;
 		this.offsetFromBottom = Math.min(this.offsetFromBottom, maxOffset);
 		if (lines.length <= availableHeight && this.offsetFromBottom === 0) {
 			return lines;
