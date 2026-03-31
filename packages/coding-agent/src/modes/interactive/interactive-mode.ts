@@ -89,6 +89,7 @@ import { SessionSelectorComponent } from "./components/session-selector.js";
 import { SettingsSelectorComponent } from "./components/settings-selector.js";
 import { SkillInvocationMessageComponent } from "./components/skill-invocation-message.js";
 import { ToolExecutionComponent } from "./components/tool-execution.js";
+import { TranscriptViewportComponent } from "./components/transcript-viewport.js";
 import { TreeSelectorComponent } from "./components/tree-selector.js";
 import { UserMessageComponent } from "./components/user-message.js";
 import { UserMessageSelectorComponent } from "./components/user-message-selector.js";
@@ -144,6 +145,7 @@ export class InteractiveMode {
 	private session: AgentSession;
 	private ui: TUI;
 	private chatContainer: Container;
+	private transcriptViewport: TranscriptViewportComponent;
 	private pendingMessagesContainer: Container;
 	private statusContainer: Container;
 	private defaultEditor: CustomEditor;
@@ -260,6 +262,9 @@ export class InteractiveMode {
 		this.ui.setClearOnShrink(this.settingsManager.getClearOnShrink());
 		this.headerContainer = new Container();
 		this.chatContainer = new Container();
+		this.transcriptViewport = new TranscriptViewportComponent(this.chatContainer, (width) =>
+			this.getChatViewportHeight(width),
+		);
 		this.pendingMessagesContainer = new Container();
 		this.statusContainer = new Container();
 		this.widgetContainerAbove = new Container();
@@ -433,6 +438,21 @@ export class InteractiveMode {
 		}
 	}
 
+	private getChatViewportHeight(width: number): number {
+		const reservedHeight =
+			this.headerContainer.render(width).length +
+			this.pendingMessagesContainer.render(width).length +
+			this.statusContainer.render(width).length +
+			this.widgetContainerAbove.render(width).length +
+			this.composerStatus.render(width).length +
+			this.composerQueue.render(width).length +
+			this.editorContainer.render(width).length +
+			this.widgetContainerBelow.render(width).length +
+			this.footer.render(width).length;
+
+		return Math.max(0, this.ui.terminal.rows - reservedHeight);
+	}
+
 	async init(): Promise<void> {
 		if (this.isInitialized) return;
 
@@ -503,7 +523,7 @@ export class InteractiveMode {
 			}
 		}
 
-		this.ui.addChild(this.chatContainer);
+		this.ui.addChild(this.transcriptViewport);
 		this.ui.addChild(this.pendingMessagesContainer);
 		this.ui.addChild(this.statusContainer);
 		this.renderWidgets(); // Initialize with default spacer
