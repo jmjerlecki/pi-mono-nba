@@ -50,6 +50,52 @@ export interface AppKeybindings {
 
 export type AppKeybinding = keyof AppKeybindings;
 
+export const APP_ACTION_TO_KEYBINDING = {
+	interrupt: "app.interrupt",
+	clear: "app.clear",
+	exit: "app.exit",
+	suspend: "app.suspend",
+	cycleThinkingLevel: "app.thinking.cycle",
+	cycleModelForward: "app.model.cycleForward",
+	cycleModelBackward: "app.model.cycleBackward",
+	selectModel: "app.model.select",
+	expandTools: "app.tools.expand",
+	toggleThinking: "app.thinking.toggle",
+	toggleSessionNamedFilter: "app.session.toggleNamedFilter",
+	externalEditor: "app.editor.external",
+	followUp: "app.message.followUp",
+	dequeue: "app.message.dequeue",
+	transcriptSearch: "app.transcript.search",
+	transcriptSearchNext: "app.transcript.searchNext",
+	transcriptSearchPrev: "app.transcript.searchPrev",
+	transcriptLineUp: "app.transcript.lineUp",
+	transcriptLineDown: "app.transcript.lineDown",
+	transcriptPageUp: "app.transcript.pageUp",
+	transcriptPageDown: "app.transcript.pageDown",
+	transcriptOldest: "app.transcript.oldest",
+	transcriptLatest: "app.transcript.latest",
+	pasteImage: "app.clipboard.pasteImage",
+	newSession: "app.session.new",
+	tree: "app.session.tree",
+	fork: "app.session.fork",
+	resume: "app.session.resume",
+	treeFoldOrUp: "app.tree.foldOrUp",
+	treeUnfoldOrDown: "app.tree.unfoldOrDown",
+	toggleSessionPath: "app.session.togglePath",
+	toggleSessionSort: "app.session.toggleSort",
+	renameSession: "app.session.rename",
+	deleteSession: "app.session.delete",
+	deleteSessionNoninvasive: "app.session.deleteNoninvasive",
+} as const satisfies Record<string, AppKeybinding>;
+
+export type AppAction = keyof typeof APP_ACTION_TO_KEYBINDING;
+
+export function resolveAppKeybinding(action: AppAction | AppKeybinding): AppKeybinding {
+	return action in APP_ACTION_TO_KEYBINDING
+		? APP_ACTION_TO_KEYBINDING[action as AppAction]
+		: (action as AppKeybinding);
+}
+
 declare module "@mariozechner/pi-tui" {
 	interface Keybindings extends AppKeybindings {}
 }
@@ -95,7 +141,7 @@ export const KEYBINDINGS = {
 		description: "Restore queued messages",
 	},
 	"app.transcript.pageUp": {
-		defaultKeys: "alt+pageup",
+		defaultKeys: "alt+pageUp",
 		description: "Scroll transcript up",
 	},
 	"app.transcript.lineUp": {
@@ -119,7 +165,7 @@ export const KEYBINDINGS = {
 		description: "Scroll transcript down one line",
 	},
 	"app.transcript.pageDown": {
-		defaultKeys: "alt+pagedown",
+		defaultKeys: "alt+pageDown",
 		description: "Scroll transcript down",
 	},
 	"app.transcript.oldest": {

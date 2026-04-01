@@ -1,5 +1,10 @@
 import { Editor, type EditorOptions, type EditorTheme, type TUI } from "@mariozechner/pi-tui";
-import type { AppKeybinding, KeybindingsManager } from "../../../core/keybindings.js";
+import {
+	type AppAction,
+	type AppKeybinding,
+	type KeybindingsManager,
+	resolveAppKeybinding,
+} from "../../../core/keybindings.js";
 
 /**
  * Custom editor that handles app-level keybindings for coding-agent.
@@ -23,8 +28,8 @@ export class CustomEditor extends Editor {
 	/**
 	 * Register a handler for an app action.
 	 */
-	onAction(action: AppKeybinding, handler: () => void): void {
-		this.actionHandlers.set(action, handler);
+	onAction(action: AppAction | AppKeybinding, handler: () => void): void {
+		this.actionHandlers.set(resolveAppKeybinding(action), handler);
 	}
 
 	handleInput(data: string): void {

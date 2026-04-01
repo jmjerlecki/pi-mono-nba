@@ -30,6 +30,7 @@ export interface ResourceLoader {
 	getSkills(): { skills: Skill[]; diagnostics: ResourceDiagnostic[] };
 	getPrompts(): { prompts: PromptTemplate[]; diagnostics: ResourceDiagnostic[] };
 	getThemes(): { themes: Theme[]; diagnostics: ResourceDiagnostic[] };
+	getPathMetadata(): Map<string, PathMetadata>;
 	getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> };
 	getSystemPrompt(): string | undefined;
 	getAppendSystemPrompt(): string[];
@@ -260,6 +261,36 @@ export class DefaultResourceLoader implements ResourceLoader {
 
 	getThemes(): { themes: Theme[]; diagnostics: ResourceDiagnostic[] } {
 		return { themes: this.themes, diagnostics: this.themeDiagnostics };
+	}
+
+	getPathMetadata(): Map<string, PathMetadata> {
+		const metadata = new Map<string, PathMetadata>();
+		const addSourceInfo = (sourceInfo: SourceInfo | undefined) => {
+			if (!sourceInfo) return;
+			metadata.set(sourceInfo.path, {
+				source: sourceInfo.source,
+				scope: sourceInfo.scope,
+				origin: sourceInfo.origin,
+				baseDir: sourceInfo.baseDir,
+			});
+		};
+
+		for (const extension of this.extensionsResult.extensions) {
+			addSourceInfo(extension.sourceInfo);
+		}
+		for (const skill of this.skills) {
+			addSourceInfo(skill.sourceInfo);
+		}
+		for (const prompt of this.prompts) {
+			addSourceInfo(prompt.sourceInfo);
+		}
+		for (const theme of this.themes) {
+			if (theme.sourceInfo) {
+				addSourceInfo(theme.sourceInfo);
+			}
+		}
+
+		return metadata;
 	}
 
 	getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> } {

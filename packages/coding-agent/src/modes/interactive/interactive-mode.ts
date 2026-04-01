@@ -11,7 +11,6 @@ import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import type { AssistantMessage, ImageContent, Message, Model, OAuthProviderId } from "@mariozechner/pi-ai";
 import type {
 	AutocompleteItem,
-	EditorAction,
 	EditorComponent,
 	EditorTheme,
 	KeyId,
@@ -30,7 +29,6 @@ import {
 	matchesKey,
 	ProcessTerminal,
 	Spacer,
-	sliceWithWidth,
 	Text,
 	TUI,
 	truncateToWidth,
@@ -83,7 +81,14 @@ import { ExtensionEditorComponent } from "./components/extension-editor.js";
 import { ExtensionInputComponent } from "./components/extension-input.js";
 import { ExtensionSelectorComponent } from "./components/extension-selector.js";
 import { FooterComponent } from "./components/footer.js";
-import { appKey, appKeyHint, editorKey, keyHint, rawKeyHint } from "./components/keybinding-hints.js";
+import {
+	appKey,
+	appKeyHint,
+	type EditorAction,
+	editorKey,
+	keyHint,
+	rawKeyHint,
+} from "./components/keybinding-hints.js";
 import { LoginDialogComponent } from "./components/login-dialog.js";
 import { ModelSelectorComponent } from "./components/model-selector.js";
 import { OAuthSelectorComponent } from "./components/oauth-selector.js";
@@ -355,13 +360,13 @@ export class InteractiveMode {
 
 		// Convert extension commands to SlashCommand format
 		const builtinCommandNames = new Set(slashCommands.map((c) => c.name));
-		const extensionCommands: SlashCommand[] = (
-			this.session.extensionRunner?.getRegisteredCommands(builtinCommandNames) ?? []
-		).map((cmd) => ({
-			name: cmd.name,
-			description: cmd.description ?? "(extension command)",
-			getArgumentCompletions: cmd.getArgumentCompletions,
-		}));
+		const extensionCommands: SlashCommand[] = (this.session.extensionRunner?.getRegisteredCommands() ?? [])
+			.filter((cmd) => !builtinCommandNames.has(cmd.name))
+			.map((cmd) => ({
+				name: cmd.name,
+				description: cmd.description ?? "(extension command)",
+				getArgumentCompletions: cmd.getArgumentCompletions,
+			}));
 
 		// Build skill commands from session.skills (if enabled)
 		this.skillCommands.clear();
@@ -554,8 +559,7 @@ export class InteractiveMode {
 			return truncateToWidth(prefix, width, "");
 		}
 
-		const remainder = sliceWithWidth(line, 0, width - prefixWidth, true).text;
-		return `${prefix}${remainder}`;
+		return truncateToWidth(`${prefix}${line}`, width, "");
 	}
 
 	private stopLoadingAnimation(clearStatus = true): void {
@@ -2481,6 +2485,7 @@ export class InteractiveMode {
 							if (!this.pendingTools.has(content.id)) {
 								const component = new ToolExecutionComponent(
 									content.name,
+									content.id,
 									content.arguments,
 									{
 										showImages: this.settingsManager.getShowImages(),
@@ -2546,6 +2551,7 @@ export class InteractiveMode {
 				if (!this.pendingTools.has(event.toolCallId)) {
 					const component = new ToolExecutionComponent(
 						event.toolName,
+						event.toolCallId,
 						event.args,
 						{
 							showImages: this.settingsManager.getShowImages(),
@@ -2870,6 +2876,7 @@ export class InteractiveMode {
 					if (content.type === "toolCall") {
 						const component = new ToolExecutionComponent(
 							content.name,
+							content.id,
 							content.arguments,
 							{ showImages: this.settingsManager.getShowImages() },
 							this.getRegisteredToolDefinition(content.name),
