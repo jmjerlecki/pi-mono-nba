@@ -39,6 +39,8 @@ export {
 	VirtualizedContainer,
 	type VirtualizedContainerChildMetrics,
 	type VirtualizedContainerChildOptions,
+	type VirtualizedContainerSearchResult,
+	type VirtualizedContainerWindow,
 } from "./components/virtualized-container.js";
 // Editor component interface (for custom editors)
 export type { EditorComponent } from "./editor-component.js";

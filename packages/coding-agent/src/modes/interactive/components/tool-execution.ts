@@ -333,4 +333,17 @@ export class ToolExecutionComponent extends Container {
 		}
 		return text;
 	}
+
+	getSearchText(): string {
+		const parts = [this.toolName];
+		const args = JSON.stringify(this.args, null, 2);
+		if (args) {
+			parts.push(args);
+		}
+		const output = this.getTextOutput();
+		if (output) {
+			parts.push(output);
+		}
+		return parts.join("\n\n");
+	}
 }

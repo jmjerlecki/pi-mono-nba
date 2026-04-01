@@ -10,6 +10,7 @@ export class AssistantMessageComponent extends Container {
 	private hideThinkingBlock: boolean;
 	private markdownTheme: MarkdownTheme;
 	private lastMessage?: AssistantMessage;
+	private searchText = "";
 
 	constructor(
 		message?: AssistantMessage,
@@ -43,6 +44,17 @@ export class AssistantMessageComponent extends Container {
 
 	updateContent(message: AssistantMessage): void {
 		this.lastMessage = message;
+		this.searchText = message.content
+			.flatMap((content) => {
+				if (content.type === "text" && content.text.trim()) {
+					return [content.text];
+				}
+				if (content.type === "thinking" && content.thinking.trim()) {
+					return [content.thinking];
+				}
+				return [];
+			})
+			.join("\n\n");
 
 		// Clear content container
 		this.contentContainer.clear();
@@ -111,5 +123,9 @@ export class AssistantMessageComponent extends Container {
 				this.contentContainer.addChild(new Text(theme.fg("error", `Error: ${errorMsg}`), 1, 0));
 			}
 		}
+	}
+
+	getSearchText(): string {
+		return this.searchText;
 	}
 }

@@ -9,8 +9,11 @@ const OSC133_ZONE_FINAL = "\x1b]133;C\x07";
  * Component that renders a user message
  */
 export class UserMessageComponent extends Container {
+	private readonly searchText: string;
+
 	constructor(text: string, markdownTheme: MarkdownTheme = getMarkdownTheme()) {
 		super();
+		this.searchText = text;
 		this.addChild(new Spacer(1));
 		this.addChild(
 			new Markdown(text, 1, 1, markdownTheme, {
@@ -29,5 +32,9 @@ export class UserMessageComponent extends Container {
 		lines[0] = OSC133_ZONE_START + lines[0];
 		lines[lines.length - 1] = lines[lines.length - 1] + OSC133_ZONE_END + OSC133_ZONE_FINAL;
 		return lines;
+	}
+
+	getSearchText(): string {
+		return this.searchText;
 	}
 }

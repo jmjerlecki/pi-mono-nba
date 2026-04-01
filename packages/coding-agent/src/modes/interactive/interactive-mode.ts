@@ -34,7 +34,6 @@ import {
 	Text,
 	TUI,
 	truncateToWidth,
-	VirtualizedContainer,
 	type VirtualizedContainerChildOptions,
 	visibleWidth,
 } from "@mariozechner/pi-tui";
@@ -93,6 +92,7 @@ import { SessionSelectorComponent } from "./components/session-selector.js";
 import { SettingsSelectorComponent } from "./components/settings-selector.js";
 import { SkillInvocationMessageComponent } from "./components/skill-invocation-message.js";
 import { ToolExecutionComponent } from "./components/tool-execution.js";
+import { TranscriptFeed } from "./components/transcript-feed.js";
 import { TranscriptSearchComponent, type TranscriptSearchRequest } from "./components/transcript-search.js";
 import {
 	type TranscriptOverflowInfo,
@@ -153,7 +153,7 @@ export interface InteractiveModeOptions {
 export class InteractiveMode {
 	private session: AgentSession;
 	private ui: TUI;
-	private chatContainer: VirtualizedContainer;
+	private chatContainer: TranscriptFeed;
 	private transcriptViewport: TranscriptViewportComponent;
 	private pendingMessagesContainer: Container;
 	private statusContainer: Container;
@@ -181,7 +181,7 @@ export class InteractiveMode {
 	private changelogMarkdown: string | undefined = undefined;
 
 	// Status line tracking (for mutating immediately-sequential status updates)
-	private lastStatusSpacer: Spacer | undefined = undefined;
+	private lastStatusBlock: Component | undefined = undefined;
 	private lastStatusText: Text | undefined = undefined;
 
 	// Streaming message tracking
@@ -270,7 +270,7 @@ export class InteractiveMode {
 		this.ui = new TUI(new ProcessTerminal(), this.settingsManager.getShowHardwareCursor());
 		this.ui.setClearOnShrink(this.settingsManager.getClearOnShrink());
 		this.headerContainer = new Container();
-		this.chatContainer = new VirtualizedContainer();
+		this.chatContainer = new TranscriptFeed();
 		this.transcriptViewport = new TranscriptViewportComponent(this.chatContainer, {
 			getAvailableHeight: (width) => this.getChatViewportHeight(width),
 			getPinnedContext: () => this.getLatestUserPromptPreview(),
@@ -499,8 +499,21 @@ export class InteractiveMode {
 		color: "dim" | "warning" | "error" | "accent",
 		options?: VirtualizedContainerChildOptions,
 	): void {
-		this.chatContainer.addChild(new Spacer(1), options);
-		this.chatContainer.addChild(new Text(theme.fg(color, text), 1, 0), options);
+		this.chatContainer.appendNotice(text, color, { ...options, leadingSpacer: true });
+	}
+
+	private appendTranscriptComponent(
+		component: Component,
+		options?: { leadingSpacer?: boolean; searchText?: string } & VirtualizedContainerChildOptions,
+	): Component {
+		return this.chatContainer.appendComponent(component, options);
+	}
+
+	private appendTranscriptComponents(
+		components: Component[],
+		options?: { leadingSpacer?: boolean; searchText?: string } & VirtualizedContainerChildOptions,
+	): Component {
+		return this.chatContainer.appendComponents(components, options);
 	}
 
 	private renderTranscriptOverflowLine(width: number, info: TranscriptOverflowInfo): string {
@@ -2726,19 +2739,18 @@ export class InteractiveMode {
 
 		const children = this.chatContainer.children;
 		const last = children.length > 0 ? children[children.length - 1] : undefined;
-		const secondLast = children.length > 1 ? children[children.length - 2] : undefined;
-
-		if (last && secondLast && last === this.lastStatusText && secondLast === this.lastStatusSpacer) {
+		if (last && last === this.lastStatusBlock && this.lastStatusText) {
 			this.lastStatusText.setText(theme.fg("dim", message));
 			this.ui.requestRender();
 			return;
 		}
 
-		const spacer = new Spacer(1);
 		const text = new Text(theme.fg("dim", message), 1, 0);
-		this.chatContainer.addChild(spacer);
-		this.chatContainer.addChild(text);
-		this.lastStatusSpacer = spacer;
+		this.lastStatusBlock = this.chatContainer.appendComponent(text, {
+			leadingSpacer: true,
+			collapseWhenBrowsingHistory: true,
+			searchText: message,
+		});
 		this.lastStatusText = text;
 		this.ui.requestRender();
 	}
@@ -2769,17 +2781,15 @@ export class InteractiveMode {
 				break;
 			}
 			case "compactionSummary": {
-				this.chatContainer.addChild(new Spacer(1));
 				const component = new CompactionSummaryMessageComponent(message, this.getMarkdownThemeWithSettings());
 				component.setExpanded(this.toolOutputExpanded);
-				this.chatContainer.addChild(component);
+				this.appendTranscriptComponent(component, { leadingSpacer: true });
 				break;
 			}
 			case "branchSummary": {
-				this.chatContainer.addChild(new Spacer(1));
 				const component = new BranchSummaryMessageComponent(message, this.getMarkdownThemeWithSettings());
 				component.setExpanded(this.toolOutputExpanded);
-				this.chatContainer.addChild(component);
+				this.appendTranscriptComponent(component, { leadingSpacer: true });
 				break;
 			}
 			case "user": {
@@ -2788,13 +2798,15 @@ export class InteractiveMode {
 					const skillBlock = parseSkillBlock(textContent);
 					if (skillBlock) {
 						// Render skill block (collapsible)
-						this.chatContainer.addChild(new Spacer(1));
 						const component = new SkillInvocationMessageComponent(
 							skillBlock,
 							this.getMarkdownThemeWithSettings(),
 						);
 						component.setExpanded(this.toolOutputExpanded);
-						this.chatContainer.addChild(component);
+						this.appendTranscriptComponent(component, {
+							leadingSpacer: true,
+							searchText: skillBlock.userMessage || textContent,
+						});
 						// Render user message separately if present
 						if (skillBlock.userMessage) {
 							const userComponent = new UserMessageComponent(
@@ -3200,16 +3212,18 @@ export class InteractiveMode {
 		);
 		const changelogLine = theme.fg("muted", "Changelog: ") + changelogUrl;
 
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new DynamicBorder((text) => theme.fg("warning", text)));
-		this.chatContainer.addChild(
-			new Text(
-				`${theme.bold(theme.fg("warning", "Update Available"))}\n${updateInstruction}\n${changelogLine}`,
-				1,
-				0,
-			),
+		this.appendTranscriptComponents(
+			[
+				new DynamicBorder((text) => theme.fg("warning", text)),
+				new Text(
+					`${theme.bold(theme.fg("warning", "Update Available"))}\n${updateInstruction}\n${changelogLine}`,
+					1,
+					0,
+				),
+				new DynamicBorder((text) => theme.fg("warning", text)),
+			],
+			{ leadingSpacer: true, searchText: `Update Available ${newVersion}` },
 		);
-		this.chatContainer.addChild(new DynamicBorder((text) => theme.fg("warning", text)));
 		this.ui.requestRender();
 	}
 
@@ -4358,8 +4372,7 @@ export class InteractiveMode {
 			info += `${theme.fg("dim", "Total:")} ${stats.cost.toFixed(4)}`;
 		}
 
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Text(info, 1, 0));
+		this.appendTranscriptComponent(new Text(info, 1, 0), { leadingSpacer: true });
 		this.ui.requestRender();
 	}
 
@@ -4375,12 +4388,16 @@ export class InteractiveMode {
 						.join("\n\n")
 				: "No changelog entries found.";
 
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new DynamicBorder());
-		this.chatContainer.addChild(new Text(theme.bold(theme.fg("accent", "What's New")), 1, 0));
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Markdown(changelogMarkdown, 1, 1, this.getMarkdownThemeWithSettings()));
-		this.chatContainer.addChild(new DynamicBorder());
+		this.appendTranscriptComponents(
+			[
+				new DynamicBorder(),
+				new Text(theme.bold(theme.fg("accent", "What's New")), 1, 0),
+				new Spacer(1),
+				new Markdown(changelogMarkdown, 1, 1, this.getMarkdownThemeWithSettings()),
+				new DynamicBorder(),
+			],
+			{ leadingSpacer: true, searchText: `What's New\n${changelogMarkdown}` },
+		);
 		this.ui.requestRender();
 	}
 
@@ -4529,12 +4546,16 @@ export class InteractiveMode {
 			}
 		}
 
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new DynamicBorder());
-		this.chatContainer.addChild(new Text(theme.bold(theme.fg("accent", "Keyboard Shortcuts")), 1, 0));
-		this.chatContainer.addChild(new Spacer(1));
-		this.chatContainer.addChild(new Markdown(hotkeys.trim(), 1, 1, this.getMarkdownThemeWithSettings()));
-		this.chatContainer.addChild(new DynamicBorder());
+		this.appendTranscriptComponents(
+			[
+				new DynamicBorder(),
+				new Text(theme.bold(theme.fg("accent", "Keyboard Shortcuts")), 1, 0),
+				new Spacer(1),
+				new Markdown(hotkeys.trim(), 1, 1, this.getMarkdownThemeWithSettings()),
+				new DynamicBorder(),
+			],
+			{ leadingSpacer: true, searchText: `Keyboard Shortcuts\n${hotkeys}` },
+		);
 		this.ui.requestRender();
 	}
 
@@ -4554,8 +4575,8 @@ export class InteractiveMode {
 		this.streamingMessage = undefined;
 		this.pendingTools.clear();
 
-		this.chatContainer.addChild(new Spacer(1), { collapseWhenBrowsingHistory: true });
-		this.chatContainer.addChild(new Text(`${theme.fg("accent", "✓ New session started")}`, 1, 1), {
+		this.chatContainer.appendNotice("✓ New session started", "accent", {
+			leadingSpacer: true,
 			collapseWhenBrowsingHistory: true,
 		});
 		this.ui.requestRender();
