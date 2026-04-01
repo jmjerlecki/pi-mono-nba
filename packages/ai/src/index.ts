@@ -19,7 +19,6 @@ export * from "./stream.js";
 export * from "./types.js";
 export * from "./utils/event-stream.js";
 export * from "./utils/json-parse.js";
-export * from "./utils/oauth/index.js";
 export type {
 	OAuthAuthInfo,
 	OAuthCredentials,
