@@ -59,6 +59,8 @@ export interface CreateAgentSessionOptions {
 
 	/** Built-in tools to use. Default: codingTools [read, bash, edit, write] */
 	tools?: Tool[];
+	/** Disable built-in tools entirely so only extension/custom tools exist in the registry. */
+	disableBuiltInTools?: boolean;
 	/** Custom tools to register (in addition to built-in tools). */
 	customTools?: ToolDefinition[];
 
@@ -239,10 +241,13 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		thinkingLevel = "off";
 	}
 
+	const disableBuiltInTools = options.disableBuiltInTools === true;
 	const defaultActiveToolNames: ToolName[] = ["read", "bash", "edit", "write"];
-	const initialActiveToolNames: ToolName[] = options.tools
-		? options.tools.map((t) => t.name).filter((n): n is ToolName => n in allTools)
-		: defaultActiveToolNames;
+	const initialActiveToolNames: ToolName[] = disableBuiltInTools
+		? []
+		: options.tools
+			? options.tools.map((t) => t.name).filter((n): n is ToolName => n in allTools)
+			: defaultActiveToolNames;
 
 	let agent: Agent;
 
@@ -362,6 +367,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		customTools: options.customTools,
 		modelRegistry,
 		initialActiveToolNames,
+		baseToolsOverride: disableBuiltInTools ? {} : undefined,
 		extensionRunnerRef,
 	});
 	const extensionsResult = resourceLoader.getExtensions();
