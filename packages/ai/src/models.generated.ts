@@ -7836,9 +7836,9 @@ export const MODELS = {
 			reasoning: true,
 			input: ["text"],
 			cost: {
-				input: 0.16,
-				output: 1.1,
-				cacheRead: 0.08,
+				input: 0.12,
+				output: 1,
+				cacheRead: 0.06,
 				cacheWrite: 0,
 			},
 			contextWindow: 196608,
@@ -10205,7 +10205,7 @@ export const MODELS = {
 				cacheWrite: 0,
 			},
 			contextWindow: 256000,
-			maxTokens: 65536,
+			maxTokens: 32768,
 		} satisfies Model<"openai-completions">,
 		"qwen/qwen3.5-flash-02-23": {
 			id: "qwen/qwen3.5-flash-02-23",
@@ -10275,8 +10275,8 @@ export const MODELS = {
 			contextWindow: 131072,
 			maxTokens: 131072,
 		} satisfies Model<"openai-completions">,
-		"reka/reka-edge": {
-			id: "reka/reka-edge",
+		"rekaai/reka-edge": {
+			id: "rekaai/reka-edge",
 			name: "Reka Edge",
 			api: "openai-completions",
 			provider: "openrouter",

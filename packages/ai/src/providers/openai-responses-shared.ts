@@ -419,7 +419,9 @@ export async function processResponsesStream<TApi extends Api>(
 				});
 				currentBlock = null;
 			} else if (item.type === "message" && currentBlock?.type === "text") {
-				currentBlock.text = item.content.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("");
+				const messageContent =
+					item.content ?? (currentItem?.type === "message" ? currentItem.content : undefined) ?? [];
+				currentBlock.text = messageContent.map((c) => (c.type === "output_text" ? c.text : c.refusal)).join("");
 				currentBlock.textSignature = encodeTextSignatureV1(item.id);
 				stream.push({
 					type: "text_end",
