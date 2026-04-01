@@ -17,6 +17,22 @@
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
 		},
+		"./sdk": {
+			"types": "./dist/core/sdk.d.ts",
+			"import": "./dist/core/sdk.js"
+		},
+		"./session-manager": {
+			"types": "./dist/core/session-manager.d.ts",
+			"import": "./dist/core/session-manager.js"
+		},
+		"./resource-loader": {
+			"types": "./dist/core/resource-loader.d.ts",
+			"import": "./dist/core/resource-loader.js"
+		},
+		"./agent-session": {
+			"types": "./dist/core/agent-session.d.ts",
+			"import": "./dist/core/agent-session.js"
+		},
 		"./hooks": {
 			"types": "./dist/core/hooks/index.d.ts",
 			"import": "./dist/core/hooks/index.js"
