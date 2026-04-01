@@ -6,6 +6,8 @@ export interface ComposerStatusSnapshot {
 	modelName: string;
 	thinkingLabel?: string;
 	isStreaming: boolean;
+	transcriptLabel: string;
+	transcriptHint?: string;
 	statusText?: string;
 	searchSummary?: {
 		query: string;
@@ -82,6 +84,24 @@ function fitLine(left: string, right: string, width: number): string {
 	return effectiveLeft + padding + effectiveRight;
 }
 
+function renderShellLine(label: string, hint: string | undefined, width: number): string {
+	if (width <= 0) return "";
+
+	const left = `${theme.fg("borderMuted", "──")} ${theme.bold(theme.fg("accent", label))} `;
+	if (!hint) {
+		const fillerWidth = Math.max(0, width - visibleWidth(left));
+		return truncateToWidth(`${left}${theme.fg("borderMuted", "─".repeat(fillerWidth))}`, width, "");
+	}
+
+	const right = ` ${hint} ${theme.fg("borderMuted", "──")}`;
+	const fillerWidth = width - visibleWidth(left) - visibleWidth(right);
+	if (fillerWidth <= 0) {
+		return truncateToWidth(`${left}${right}`, width, theme.fg("dim", "..."));
+	}
+
+	return `${left}${theme.fg("borderMuted", "─".repeat(fillerWidth))}${right}`;
+}
+
 export class ComposerStatusComponent implements Component {
 	constructor(private readonly getSnapshot: () => ComposerStatusSnapshot) {}
 
@@ -107,6 +127,10 @@ export class ComposerStatusComponent implements Component {
 		const separator = theme.fg("borderMuted", " | ");
 		const hintsLine = snapshot.hints.join(separator);
 
-		return [fitLine(left, right, width), truncateToWidth(hintsLine, width, theme.fg("dim", "..."))];
+		return [
+			renderShellLine(snapshot.transcriptLabel, snapshot.transcriptHint, width),
+			fitLine(left, right, width),
+			truncateToWidth(hintsLine, width, theme.fg("dim", "...")),
+		];
 	}
 }

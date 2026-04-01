@@ -15,6 +15,13 @@ export interface VirtualizedContainerChildOptions {
 	collapseWhenBrowsingHistory?: boolean;
 }
 
+export interface VirtualizedContainerChildMetrics {
+	index: number;
+	startLine: number;
+	endLine: number;
+	height: number;
+}
+
 export class VirtualizedContainer extends Container {
 	private cachedRenders: CachedRender[] = [];
 	private childOptions: VirtualizedContainerChildOptions[] = [];
@@ -22,12 +29,14 @@ export class VirtualizedContainer extends Container {
 	private offsetsDirty = true;
 	private lastWidth = -1;
 	private browsingHistory = false;
+	private searchMatchesCache = new Map<string, number[]>();
 
 	override addChild(component: Component, options: VirtualizedContainerChildOptions = {}): void {
 		super.addChild(component);
 		this.childOptions.push(options);
 		this.cachedRenders.push({ height: this.estimateHeight(component) });
 		this.offsetsDirty = true;
+		this.searchMatchesCache.clear();
 	}
 
 	override removeChild(component: Component): void {
@@ -39,6 +48,7 @@ export class VirtualizedContainer extends Container {
 		this.childOptions.splice(index, 1);
 		this.cachedRenders.splice(index, 1);
 		this.offsetsDirty = true;
+		this.searchMatchesCache.clear();
 	}
 
 	override clear(): void {
@@ -47,6 +57,7 @@ export class VirtualizedContainer extends Container {
 		this.childOptions = [];
 		this.cachedOffsets = [0];
 		this.offsetsDirty = false;
+		this.searchMatchesCache.clear();
 	}
 
 	setBrowsingHistory(browsingHistory: boolean): void {
@@ -55,6 +66,7 @@ export class VirtualizedContainer extends Container {
 		}
 		this.browsingHistory = browsingHistory;
 		this.offsetsDirty = true;
+		this.searchMatchesCache.clear();
 	}
 
 	override invalidate(): void {
@@ -65,6 +77,7 @@ export class VirtualizedContainer extends Container {
 			cached.width = undefined;
 		}
 		this.offsetsDirty = true;
+		this.searchMatchesCache.clear();
 	}
 
 	override render(width: number): string[] {
@@ -98,6 +111,52 @@ export class VirtualizedContainer extends Container {
 			plainLines.push(...cached.plainLines);
 		}
 		return plainLines;
+	}
+
+	getSearchMatches(width: number, query: string): number[] {
+		this.syncWidth(width);
+		const cacheKey = `${width}:${this.browsingHistory ? 1 : 0}:${query}`;
+		const cachedMatches = this.searchMatchesCache.get(cacheKey);
+		if (cachedMatches) {
+			return cachedMatches;
+		}
+
+		const matches: number[] = [];
+		let lineOffset = 0;
+		for (let i = 0; i < this.children.length; i++) {
+			const child = this.renderChild(width, i);
+			for (let j = 0; j < child.plainLines.length; j++) {
+				if (child.plainLines[j].toLowerCase().includes(query)) {
+					matches.push(lineOffset + j);
+				}
+			}
+			lineOffset += child.height;
+		}
+
+		this.searchMatchesCache.set(cacheKey, matches);
+		return matches;
+	}
+
+	getChildMetrics(width: number, index: number): VirtualizedContainerChildMetrics | undefined {
+		this.syncWidth(width);
+		if (index < 0 || index >= this.children.length) {
+			return undefined;
+		}
+
+		const offsets = this.getOffsets();
+		const child = this.renderChild(width, index);
+		return {
+			index,
+			startLine: offsets[index] ?? 0,
+			endLine: (offsets[index] ?? 0) + child.height,
+			height: child.height,
+		};
+	}
+
+	getChildIndexAtLine(width: number, lineIndex: number): number {
+		this.syncWidth(width);
+		const offsets = this.getOffsets();
+		return this.findChildIndex(offsets, lineIndex);
 	}
 
 	renderTrailingLines(width: number, lineCount: number): { lines: string[]; startLine: number; totalLines: number } {
@@ -239,6 +298,7 @@ export class VirtualizedContainer extends Container {
 		}
 
 		this.lastWidth = width;
+		this.searchMatchesCache.clear();
 	}
 
 	private estimateHeight(component: Component): number {

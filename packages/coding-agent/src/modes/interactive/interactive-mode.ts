@@ -393,6 +393,9 @@ export class InteractiveMode {
 		const transcriptSearchQuery = this.transcriptViewport.getSearchQuery();
 		const transcriptSearchSummary = this.transcriptViewport.getSearchSummary();
 		const transcriptLiveHint = appKeyHint(this.keybindings, "transcriptLatest", "live");
+		const transcriptSearchNextHint = appKeyHint(this.keybindings, "transcriptSearchNext", "next");
+		const transcriptSearchPrevHint = appKeyHint(this.keybindings, "transcriptSearchPrev", "prev");
+		const transcriptDivider = theme.fg("borderMuted", " • ");
 		const thinkingLabel = model?.reasoning
 			? this.session.thinkingLevel === "off"
 				? "off"
@@ -440,25 +443,36 @@ export class InteractiveMode {
 					...(!transcriptAtLatest ? [transcriptLiveHint] : []),
 					...(this.loadingAnimation ? [rawKeyHint(interruptLabel, "interrupt")] : []),
 				];
+		const compactSearchQuery =
+			transcriptSearchSummary && transcriptSearchSummary.query.length > 20
+				? `${transcriptSearchSummary.query.slice(0, 17).trimEnd()}...`
+				: transcriptSearchSummary?.query;
+		const transcriptLabel = transcriptSearchSummary
+			? `search ${transcriptSearchSummary.activeMatch}/${transcriptSearchSummary.totalMatches} ${compactSearchQuery ? `· ${compactSearchQuery}` : ""}`
+			: transcriptAtLatest
+				? "conversation live"
+				: transcriptState.hiddenBelow > 0
+					? `history review · ${transcriptState.hiddenBelow} live below`
+					: "history review";
+		const transcriptHint = transcriptSearchSummary
+			? [
+					transcriptSearchNextHint,
+					transcriptSearchPrevHint,
+					...(!transcriptAtLatest ? [transcriptLiveHint] : []),
+				].join(transcriptDivider)
+			: !transcriptAtLatest
+				? transcriptLiveHint
+				: undefined;
 
 		return {
 			mode: this.isBashMode ? "bash" : "chat",
 			modelName: model ? model.id : "no-model",
 			thinkingLabel,
 			isStreaming: !!this.loadingAnimation || this.session.isStreaming,
+			transcriptLabel,
+			transcriptHint,
 			searchSummary: transcriptSearchSummary,
-			statusText:
-				this.currentWorkingMessage ??
-				this.latestComposerStatus ??
-				(!transcriptAtLatest
-					? transcriptSearchSummary
-						? transcriptState.hiddenBelow > 0
-							? `Search ${transcriptSearchSummary.activeMatch}/${transcriptSearchSummary.totalMatches} • ${transcriptState.hiddenBelow} live line${transcriptState.hiddenBelow === 1 ? "" : "s"} below`
-							: `Search ${transcriptSearchSummary.activeMatch}/${transcriptSearchSummary.totalMatches} in history`
-						: transcriptState.hiddenBelow > 0
-							? `Browsing history • ${transcriptState.hiddenBelow} live line${transcriptState.hiddenBelow === 1 ? "" : "s"} below`
-							: "Browsing history"
-					: undefined),
+			statusText: this.currentWorkingMessage ?? this.latestComposerStatus,
 			hints,
 		};
 	}
